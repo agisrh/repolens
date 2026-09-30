@@ -16,7 +16,8 @@ def security(doc: Blocks, facts: dict) -> None:
             t(
                 "No common secret patterns (GitHub/AWS/Slack/Stripe tokens, private keys, JWT, "
                 "hardcoded passwords) were found in the current files.",
-                "Tidak ditemukan pola rahasia yang umum (token GitHub/AWS/Slack/Stripe, private key, "
+                "Tidak ditemukan pola rahasia yang umum (token GitHub/AWS/Slack/Stripe, private "
+                "key, "
                 "JWT, password hardcoded) di file saat ini.",
             )
         )

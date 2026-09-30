@@ -83,7 +83,9 @@ def prefix_at(spans: list[tuple[int, int, str]], pos: int) -> str:
 
 
 def php_handler(raw: str) -> str:
-    """Short name of a PHP route handler: [UserController::class, 'index'] -> UserController@index."""
+    """Short name of a PHP route handler.
+
+    [UserController::class, 'index'] -> UserController@index; a closure -> Closure."""
     raw = " ".join(raw.split())
     match = re.search(r"\[\s*([\w\\]+)::class\s*,\s*['\"](\w+)['\"]\s*\]", raw)
     if match:

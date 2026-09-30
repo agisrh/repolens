@@ -242,7 +242,7 @@ def test_old_scan_json_without_new_keys_still_renders(tmp_path):
 
 
 def test_indonesian_output_and_legacy_values(tmp_path):
-    """--lang id renders Indonesian; values from scans made by 0.1 (Indonesian text) still render."""
+    """--lang id renders Indonesian; values from 0.1 scans (Indonesian text) still render."""
     set_lang("id")
     try:
         facts = run("ci4_no_vendor")

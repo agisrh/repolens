@@ -23,7 +23,10 @@ ENV_KEYS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
 
 
 def config_dir() -> Path:
-    """REPOLENS_CONFIG_DIR, else %APPDATA%\\repolens on Windows, else $XDG_CONFIG_HOME/repolens or ~/.config/repolens."""
+    """Folder for settings and the fallback credentials file.
+
+    REPOLENS_CONFIG_DIR, else %APPDATA%\\repolens on Windows, else $XDG_CONFIG_HOME/repolens
+    or ~/.config/repolens."""
     if os.environ.get("REPOLENS_CONFIG_DIR"):
         return Path(os.environ["REPOLENS_CONFIG_DIR"]).expanduser()
     if os.name == "nt" and os.environ.get("APPDATA"):
@@ -40,7 +43,9 @@ def _settings_file() -> Path:
 
 
 def _keyring():
-    """The keyring module when a real OS keychain backs it; None otherwise (or when REPOLENS_NO_KEYRING is set)."""
+    """The keyring module when a real OS keychain backs it.
+
+    None when there is none (e.g. a headless server) or REPOLENS_NO_KEYRING is set."""
     if os.environ.get("REPOLENS_NO_KEYRING"):
         return None
     try:
@@ -70,7 +75,9 @@ def _read_json(path: Path) -> dict:
 
 
 def _write_private(path: Path, data: dict) -> None:
-    """Write JSON readable only by the current user (created 0600, never world-readable in between)."""
+    """Write JSON readable only by the current user.
+
+    The file is created with mode 0600, so it is never world-readable, not even briefly."""
     path.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, stat.S_IRUSR | stat.S_IWUSR)
     with os.fdopen(fd, "w", encoding="utf-8") as fh:

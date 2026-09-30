@@ -61,3 +61,5 @@ target-version = "py310"
 [tool.ruff.lint]
 # E/W: pycodestyle, F: pyflakes, I: import order, B: likely bugs, UP: modern syntax, SIM: simpler code
 select = ["E", "W", "F", "I", "B", "UP", "SIM"]
+# SIM905: "a b c".split() is kept on purpose for long lists of short tokens.
+ignore = ["SIM905"]

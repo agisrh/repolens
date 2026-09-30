@@ -47,9 +47,9 @@ def register(subparsers, common):
 def run(args) -> int:
     check_source_options(args)
     ui.header("Doctor", source_detail(args))
-    with ui.out.status(t("Scanning…", "Memindai…")):
-        with prepared_source(args.source, args.ref) as (root, info):
-            facts = scan(root, info, use_git=not args.no_git)
+    scanning = ui.out.status(t("Scanning…", "Memindai…"))
+    with scanning, prepared_source(args.source, args.ref) as (root, info):
+        facts = scan(root, info, use_git=not args.no_git)
     checks = facts["coverage"]
     warnings = count_warnings(checks)
     exit_code = 1 if args.strict and warnings else 0

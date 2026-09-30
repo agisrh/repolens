@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from repolens import __version__, coverage, projectconfig
-from repolens.extractors import config, database, deps, endpoints, overview, stack
+from repolens.extractors import config, database, deps, endpoints, overview, platforms, stack
 from repolens.i18n import get_lang, t
 from repolens.repo import Repo, strip_credentials
 
@@ -24,10 +24,13 @@ GIT_ENV = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
 
 
 def is_git_url(source: str) -> bool:
+    """True for https://, ssh:// and git@host: sources (anything else is a local folder)."""
     return bool(GIT_URL.match(source))
 
 
 def _run(args: list[str], cwd: str | None = None) -> str:
+    """Run a command (git) and return its output; failures become a readable RuntimeError
+    with any credentials in URLs removed."""
     try:
         result = subprocess.run(
             args,
@@ -76,24 +79,7 @@ def prepared_source(source: str, ref: str | None):
     tmp = tempfile.mkdtemp(prefix="repolens-")
     target = str(Path(tmp) / "repo")
     try:
-        origin = source if is_url else str(Path(source).resolve())
-        # Remote: skip file contents of old commits (fetched on demand), keeps history for git log/describe.
-        clone = (
-            ["git", "clone", "--quiet", "--filter=blob:none"]
-            if is_url
-            else ["git", "clone", "--quiet", "--no-hardlinks"]
-        )
-        _run(clone + [origin, target])
-        if not is_url:
-            # Report the project's real remote (e.g. GitHub), not the local folder the temp clone came from.
-            try:
-                remote = _run(["git", "remote", "get-url", "origin"], cwd=origin)
-            except RuntimeError:
-                remote = ""
-            if remote:
-                _run(["git", "remote", "set-url", "origin", remote], cwd=target)
-            else:
-                _run(["git", "remote", "remove", "origin"], cwd=target)
+        _clone(source, is_url, target)
         if ref:
             _run(["git", "-c", "advice.detachedHead=false", "checkout", "--quiet", ref], cwd=target)
         yield (
@@ -108,14 +94,56 @@ def prepared_source(source: str, ref: str | None):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def _clone(source: str, is_url: bool, target: str) -> None:
+    """Clone `source` into `target`, keeping the remote the project really uses."""
+    origin = source if is_url else str(Path(source).resolve())
+    if is_url:
+        # Skip file contents of old commits (fetched on demand), but keep the history for
+        # git log / describe.
+        _run(["git", "clone", "--quiet", "--filter=blob:none", origin, target])
+        return
+    _run(["git", "clone", "--quiet", "--no-hardlinks", origin, target])
+    # Report the project's real remote (e.g. GitHub), not the local folder the temporary
+    # clone came from.
+    try:
+        remote = _run(["git", "remote", "get-url", "origin"], cwd=origin)
+    except RuntimeError:
+        remote = ""
+    if remote:
+        _run(["git", "remote", "set-url", "origin", remote], cwd=target)
+    else:
+        _run(["git", "remote", "remove", "origin"], cwd=target)
+
+
 def _quiet(message: str, kind: str = "step") -> None:
     pass
+
+
+def _identity(repo: Repo, source_info: dict) -> dict:
+    """Project name and version. A clone lives in a temporary folder, so when the name would
+    come from the folder, the repository name from the URL or path is used instead."""
+    ident = overview.identity(repo)
+    if source_info["type"] != "local" and ident["name_source"] == "folder":
+        name = Path(source_info["location"].rstrip("/")).name.removesuffix(".git")
+        ident["name"] = ident["folder"] = name
+    return ident
+
+
+def _git(repo: Repo, source_info: dict, use_git: bool) -> dict:
+    if not use_git:
+        return {"is_git": False, "disabled": True}
+    git = overview.git_info(repo)
+    if source_info["type"] == "git-url" and not git.get("remote"):
+        git["remote"] = source_info["location"]
+    return git
 
 
 def scan(
     root: Path, source_info: dict, tree_depth: int | None = None, log=_quiet, use_git: bool = True
 ) -> dict:
-    """Run every extractor. `log(message, kind)` reports progress; use_git=False reads the folder as plain files."""
+    """Run every extractor and return the scan facts.
+
+    `log(message, kind)` reports progress; use_git=False reads the folder as plain files."""
     if not Path(root).is_dir():
         raise FileNotFoundError(
             t("Folder not found: ", "Folder tidak ditemukan: ") + str(Path(root).resolve())
@@ -133,19 +161,13 @@ def scan(
         t(f"Reading {len(repo.files)} files", f"Membaca {len(repo.files)} file")
         + ("" if use_git else t(" (plain folder, git not used)", " (folder biasa, tanpa git)"))
     )
-    ident = overview.identity(repo)
-    if source_info["type"] != "local" and ident["name_source"] == "folder":
-        ident["name"] = ident["folder"] = Path(
-            source_info["location"].rstrip("/")
-        ).name.removesuffix(".git")
-    git = overview.git_info(repo) if use_git else {"is_git": False, "disabled": True}
-    if source_info["type"] == "git-url" and not git.get("remote"):
-        git["remote"] = source_info["location"]
+    ident = _identity(repo, source_info)
+    git = _git(repo, source_info, use_git)
 
     log(t("Tech stack & dependencies", "Tech stack & dependency"))
     manifests = deps.extract(repo)
     frameworks = stack.frameworks(repo, manifests)
-    infra = stack.infrastructure(repo)
+    infra = platforms.infrastructure(repo)
 
     log(t("Endpoints & routes", "Endpoint & route"))
     eps = endpoints.extract(repo, extra_routes)
@@ -166,7 +188,7 @@ def scan(
         "languages": overview.languages(repo),
         "frameworks": frameworks,
         "dependencies": manifests,
-        "platforms": stack.mobile_platforms(repo),
+        "platforms": platforms.mobile_platforms(repo),
         "infrastructure": infra,
         "endpoints": eps,
         "database": db,

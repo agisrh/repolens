@@ -1,4 +1,4 @@
-"""Environment/config keys (names only, never values) and secret detection."""
+"""Environment and config keys (names only, never values), and secret detection."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ TEMPLATE_SUFFIXES = (".example", ".sample", ".dist", ".template", ".defaults")
 
 
 def env_files(repo: Repo) -> list[dict]:
+    """Every .env-style file with its key names; `template` marks .env.example and the like."""
     results = []
     for path in repo.files:
         if not ENV_FILE.search(path) or path.startswith(("android/", "ios/")):
@@ -23,7 +24,7 @@ def env_files(repo: Repo) -> list[dict]:
             continue
         filename = path.rsplit("/", 1)[-1].lower()
         is_template = filename == "env" or any(
-            t.strip(".") in filename.split(".") for t in TEMPLATE_SUFFIXES
+            suffix.strip(".") in filename.split(".") for suffix in TEMPLATE_SUFFIXES
         )
         results.append(
             {
@@ -37,6 +38,7 @@ def env_files(repo: Repo) -> list[dict]:
 
 
 def spring_profiles(repo: Repo) -> list[dict]:
+    """Top-level keys of Spring application*.properties / *.yml files (not test ones)."""
     out = []
     for path in repo.glob("*application*.properties", "*application*.yml", "*application*.yaml"):
         if "/test/" in path:
@@ -74,81 +76,39 @@ SECRET_PATTERNS = [
         ),
     ),
 ]
-# Test code and fixtures often hold throwaway credentials: still reported, but not at the same level as app code.
+# Test code and fixtures often hold throwaway credentials: still reported, but not at the
+# same level as app code.
 TEST_PATH = re.compile(
     r"(^|/)(tests?|__tests__|spec|specs|fixtures?|testdata)/|(_test|\.test|\.spec|Test|Tests)\.\w+$"
 )
-# Firebase client config: the API key is meant to ship inside the app; the risk is a key without restrictions.
+# Firebase client config: the API key is meant to ship inside the app; the risk is a key
+# without restrictions.
 FIREBASE_CLIENT_CONFIG = {
     "google-services.json",
     "GoogleService-Info.plist",
     "firebase_options.dart",
 }
 SEVERITY_ORDER = {"high": 0, "medium": 1, "low": 2}
-SKIP_SECRET_FILES = (
-    ".lock",
-    ".min.js",
-    ".map",
-    ".svg",
-    ".png",
-    ".jpg",
-    ".jpeg",
-    ".gif",
-    ".ico",
-    ".pdf",
-    ".ttf",
-    ".woff",
-    ".woff2",
-    ".jar",
-    ".keystore",
-    ".jks",
+# Binary, generated, or lock files: never searched for secrets.
+SKIP_SECRET_FILES = tuple(
+    ".lock .min.js .map .svg .png .jpg .jpeg .gif .ico .pdf .ttf .woff .woff2 .jar .keystore"
+    " .jks".split()
 )
+# Placeholder values that are not real passwords.
+PLACEHOLDERS = ("password", "changeme", "secret")
 
 
 def secrets(repo: Repo) -> list[dict]:
+    """Possible secrets in the current files, most severe first. Values are masked: a token
+    shows its first 4 characters, a password none. A committed .env file is a finding too."""
     findings = []
-    seen_lines: set[tuple[str, int]] = set()
+    seen: set[tuple[str, int]] = set()  # one finding per line
     for path in repo.files:
         if path.endswith(SKIP_SECRET_FILES):
             continue
-        in_test = bool(TEST_PATH.search(path))
         text = repo.read(path)
-        if not text:
-            continue
-        for label, pattern in SECRET_PATTERNS:
-            for m in pattern.finditer(text):
-                value = m.group(1)
-                line = line_of(text, m.start())
-                if (path, line) in seen_lines:
-                    continue  # already reported by a more specific pattern
-                if label == "Hardcoded password" and (
-                    value.lower() in ("password", "changeme", "secret") or "env(" in value
-                ):
-                    continue
-                seen_lines.add((path, line))
-                severity, note = ("high" if label in HIGH_SEVERITY else "medium"), None
-                if label == "Google API key" and path.rsplit("/", 1)[-1] in FIREBASE_CLIENT_CONFIG:
-                    severity, note = (
-                        "low",
-                        t(
-                            "Firebase client config; make sure the key is restricted (API restrictions / App Check)",
-                            "config Firebase klien; pastikan key dibatasi (API restriction / App Check)",
-                        ),
-                    )
-                elif in_test and severity == "medium":
-                    severity, note = "low", t("in a test file", "di file test")
-                findings.append(
-                    {
-                        "type": label,
-                        "severity": severity,
-                        "file": path,
-                        "line": line,
-                        "preview": ("••••" if label == "Hardcoded password" else value[:4] + "…")
-                        + t(f" ({len(value)} chars)", f" ({len(value)} karakter)"),
-                        "committed": path in repo.tracked_files if repo.is_git else None,
-                        "note": note,
-                    }
-                )
+        if text:
+            findings += _secrets_in_file(repo, path, text, seen)
     for env in env_files(repo):
         if not env["template"] and env["committed"]:
             findings.append(
@@ -165,6 +125,48 @@ def secrets(repo: Repo) -> list[dict]:
     return sorted(
         findings, key=lambda f: (SEVERITY_ORDER[f["severity"]], f["type"], f["file"], f["line"])
     )
+
+
+def _secrets_in_file(repo: Repo, path: str, text: str, seen: set) -> list[dict]:
+    findings = []
+    for label, pattern in SECRET_PATTERNS:
+        for match in pattern.finditer(text):
+            value = match.group(1)
+            line = line_of(text, match.start())
+            if (path, line) in seen:
+                continue  # already reported by a more specific pattern
+            if label == "Hardcoded password" and (value.lower() in PLACEHOLDERS or "env(" in value):
+                continue
+            seen.add((path, line))
+            severity, note = _severity(label, path)
+            masked = "••••" if label == "Hardcoded password" else value[:4] + "…"
+            findings.append(
+                {
+                    "type": label,
+                    "severity": severity,
+                    "file": path,
+                    "line": line,
+                    "preview": masked + t(f" ({len(value)} chars)", f" ({len(value)} karakter)"),
+                    "committed": path in repo.tracked_files if repo.is_git else None,
+                    "note": note,
+                }
+            )
+    return findings
+
+
+def _severity(label: str, path: str) -> tuple[str, str | None]:
+    """(severity, note). Firebase client keys and findings in test files are "low"."""
+    if label in HIGH_SEVERITY:
+        return "high", None
+    if label == "Google API key" and path.rsplit("/", 1)[-1] in FIREBASE_CLIENT_CONFIG:
+        return "low", t(
+            "Firebase client config; make sure the key is restricted "
+            "(API restrictions / App Check)",
+            "config Firebase klien; pastikan key dibatasi (API restriction / App Check)",
+        )
+    if TEST_PATH.search(path):
+        return "low", t("in a test file", "di file test")
+    return "medium", None
 
 
 def extract(repo: Repo) -> dict:

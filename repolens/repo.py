@@ -64,7 +64,8 @@ class Repo:
             )
         # use_git=False: read the folder as plain files on disk (no .gitignore, no git metadata).
         self.use_git = use_git
-        # Extra glob patterns to exclude (from .repolens.yml `ignore`). A bare folder name matches the whole folder.
+        # Extra glob patterns to exclude (from .repolens.yml `ignore`). A bare folder name
+        # matches the whole folder.
         self.ignore = [p.rstrip("/") for p in ignore]
 
     def _ignored(self, rel: str) -> bool:

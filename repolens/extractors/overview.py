@@ -82,59 +82,17 @@ def git_info(repo: Repo) -> dict:
 
 
 def identity(repo: Repo) -> dict:
-    """Project name, version, and description from the first manifest that declares them."""
-    name = version = description = None
-    source = None
+    """Project name, version, and description from the manifests.
 
-    def take(n, v, d, src):
-        nonlocal name, version, description, source
-        if n and not name:
-            name, source = n, src
-        if v and not version:
-            version = v
-        if d and not description:
-            description = d
-
-    if repo.exists("pubspec.yaml"):
-        try:
-            data = yaml.safe_load(repo.read("pubspec.yaml")) or {}
-            take(
-                data.get("name"),
-                str(data.get("version") or "") or None,
-                data.get("description"),
-                "pubspec.yaml",
-            )
-        except yaml.YAMLError:
-            pass
-    if repo.exists("package.json"):
-        try:
-            data = json.loads(repo.read("package.json"))
-            take(data.get("name"), data.get("version"), data.get("description"), "package.json")
-        except json.JSONDecodeError:
-            pass
-    if repo.exists("composer.json"):
-        try:
-            data = json.loads(repo.read("composer.json"))
-            take(data.get("name"), data.get("version"), data.get("description"), "composer.json")
-        except json.JSONDecodeError:
-            pass
-    if repo.exists("pom.xml"):
-        text = repo.read("pom.xml")
-        body = re.sub(r"<parent>.*?</parent>", "", text, flags=re.S)
-        body = re.sub(r"<dependencies>.*", "", body, flags=re.S)
-        a = re.search(r"<artifactId>([^<]+)</artifactId>", body)
-        v = re.search(r"<version>([^<]+)</version>", body)
-        d = re.search(r"<description>([^<]+)</description>", body)
-        take(a and a.group(1), v and v.group(1), d and d.group(1).strip(), "pom.xml")
-    for gradle in ("build.gradle", "build.gradle.kts"):
-        if repo.exists(gradle):
-            v = re.search(r"^version\s*=?\s*['\"]([^'\"]+)['\"]", repo.read(gradle), re.M)
-            take(None, v and v.group(1), None, gradle)
-    if repo.exists("settings.gradle") or repo.exists("settings.gradle.kts"):
-        s = repo.read("settings.gradle") or repo.read("settings.gradle.kts")
-        n = re.search(r"rootProject\.name\s*=\s*['\"]([^'\"]+)['\"]", s)
-        take(n and n.group(1), None, None, "settings.gradle")
-
+    Each field comes from the first manifest in IDENTITY_READERS that declares it; the name
+    falls back to the folder name."""
+    name = version = description = source = None
+    for read in IDENTITY_READERS:
+        for found_name, found_version, found_description, file in read(repo):
+            if found_name and not name:
+                name, source = found_name, file
+            version = version or found_version or None
+            description = description or found_description or None
     # Framework skeletons ship their own composer/package name; that is not the app's name.
     if name in SKELETON_NAMES:
         name, source = None, None
@@ -145,6 +103,59 @@ def identity(repo: Repo) -> dict:
         "name_source": source or "folder",
         "folder": repo.root.name,
     }
+
+
+# Each reader yields (name, version, description, file) for the manifests it understands.
+
+
+def _pubspec_identity(repo: Repo):
+    if repo.exists("pubspec.yaml"):
+        try:
+            data = yaml.safe_load(repo.read("pubspec.yaml")) or {}
+        except yaml.YAMLError:
+            return
+        version = str(data.get("version") or "") or None
+        yield data.get("name"), version, data.get("description"), "pubspec.yaml"
+
+
+def _json_identity(repo: Repo):
+    for file in ("package.json", "composer.json"):
+        if repo.exists(file):
+            try:
+                data = json.loads(repo.read(file))
+            except json.JSONDecodeError:
+                continue
+            yield data.get("name"), data.get("version"), data.get("description"), file
+
+
+def _maven_identity(repo: Repo):
+    if repo.exists("pom.xml"):
+        # Only the project's own tags: not those of the parent or of dependencies.
+        body = re.sub(r"<parent>.*?</parent>", "", repo.read("pom.xml"), flags=re.S)
+        body = re.sub(r"<dependencies>.*", "", body, flags=re.S)
+        artifact = re.search(r"<artifactId>([^<]+)</artifactId>", body)
+        version = re.search(r"<version>([^<]+)</version>", body)
+        description = re.search(r"<description>([^<]+)</description>", body)
+        yield (
+            artifact and artifact.group(1),
+            version and version.group(1),
+            description and description.group(1).strip(),
+            "pom.xml",
+        )
+
+
+def _gradle_identity(repo: Repo):
+    for gradle in ("build.gradle", "build.gradle.kts"):
+        if repo.exists(gradle):
+            version = re.search(r"^version\s*=?\s*['\"]([^'\"]+)['\"]", repo.read(gradle), re.M)
+            yield None, version and version.group(1), None, gradle
+    if repo.exists("settings.gradle") or repo.exists("settings.gradle.kts"):
+        settings = repo.read("settings.gradle") or repo.read("settings.gradle.kts")
+        name = re.search(r"rootProject\.name\s*=\s*['\"]([^'\"]+)['\"]", settings)
+        yield name and name.group(1), None, None, "settings.gradle"
+
+
+IDENTITY_READERS = [_pubspec_identity, _json_identity, _maven_identity, _gradle_identity]
 
 
 def readme_excerpt(repo: Repo, limit: int = 6000) -> str:

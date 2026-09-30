@@ -29,8 +29,10 @@ def configuration(doc: Blocks, facts: dict) -> None:
             listed = ", ".join(committed)
             doc.note(
                 t(
-                    f"These env files are committed to git: {listed}. Make sure they hold no secrets.",
-                    f"File env berikut ikut di-commit ke git: {listed}. Pastikan isinya bukan rahasia.",
+                    f"These env files are committed to git: {listed}. Make sure they hold no "
+                    "secrets.",
+                    f"File env berikut ikut di-commit ke git: {listed}. Pastikan isinya bukan "
+                    "rahasia.",
                 ),
                 level="warn",
             )
@@ -112,8 +114,10 @@ def dependencies(doc: Blocks, facts: dict) -> None:
             lock = f"Lock file: `{manifest['lock']}`."
         else:
             lock = t(
-                "No lock file, so the *installed* column is empty unless the manifest pins a version.",
-                "Tidak ada lock file, jadi kolom *terpasang* kosong kecuali versi dipatok di manifest.",
+                "No lock file, so the *installed* column is empty unless the manifest pins a "
+                "version.",
+                "Tidak ada lock file, jadi kolom *terpasang* kosong kecuali versi dipatok di "
+                "manifest.",
             )
         runtime = ", ".join(f"{k}: {v}" for k, v in (manifest.get("runtime") or {}).items() if v)
         doc.p(lock + (f" Runtime: {runtime}." if runtime else ""))

@@ -152,7 +152,8 @@ def _commented_examples() -> list[str]:
     auto_routing = t("created through auto-routing", "dibuat lewat auto-routing")
     return [
         t(
-            "# Route files outside the standard locations (Laravel, CodeIgniter 3/4 are recognised):",
+            "# Route files outside the standard locations (Laravel, CodeIgniter 3/4 are "
+            "recognised):",
             "# File route di luar lokasi standar (Laravel, CodeIgniter 3/4 dikenali otomatis):",
         ),
         "# routes:",

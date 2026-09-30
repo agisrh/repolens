@@ -177,7 +177,7 @@ def _language() -> str:
 
 
 def _scan_flow() -> list[str]:
-    argv = ["scan"]
+    """Source, what to read from it, formats, AI, language, and output folder."""
     kind = select(
         t("Source", "Sumber"),
         [
@@ -185,118 +185,112 @@ def _scan_flow() -> list[str]:
             Choice(t("Git repository URL", "URL repository git"), "url"),
         ],
     )
-    if kind == "url":
-        url = _text(
-            t("Git URL (https or ssh)", "URL git (https atau ssh)"),
-            validate=lambda v: is_git_url(v.strip()) or t("Not a git URL", "Bukan URL git"),
-        )
-        argv.append(url)
-        ref = _text(
-            t(
-                "Tag / branch / commit (empty = default branch)",
-                "Tag / branch / commit (kosong = branch utama)",
-            )
-        )
-        if ref:
-            argv += ["--ref", ref]
-        compare = _text(
-            t(
-                "Compare with ref (empty = no comparison)",
-                "Bandingkan dengan ref (kosong = tanpa pembanding)",
-            )
-        )
-        if compare:
-            argv += ["--compare-ref", compare]
-    else:
-        folder = _folder(t("Folder", "Folder"))
-        argv.append(folder)
-        if _is_git_repo(folder):
-            mode = select(
-                t("What to scan", "Yang dipindai"),
-                [
-                    Choice(
-                        t(
-                            "Current files, with git  (follows .gitignore, adds commit info)",
-                            "File saat ini, dengan git  (mengikuti .gitignore, ada info commit)",
-                        ),
-                        "git",
-                    ),
-                    Choice(
-                        t(
-                            "Current files as a plain folder  (everything on disk, no git)",
-                            "File saat ini sebagai folder biasa  (semua file di disk, tanpa git)",
-                        ),
-                        "plain",
-                    ),
-                    Choice(
-                        t(
-                            "A tag / branch / commit  (clean release, working tree untouched)",
-                            "Tag / branch / commit  (rilis bersih, working tree tidak disentuh)",
-                        ),
-                        "ref",
-                    ),
-                ],
-            )
-            ref = None
-            if mode == "plain":
-                argv.append("--no-git")
-            elif mode == "ref":
-                ref = _pick_ref(folder, t("Release to scan", "Rilis yang dipindai"))
-                argv += ["--ref", ref]
-            if mode != "plain":
-                compare = _pick_ref(
-                    folder,
-                    t("Compare with an earlier release?", "Bandingkan dengan rilis sebelumnya?"),
-                    exclude=ref,
-                    allow_none=True,
-                )
-                if compare:
-                    argv += ["--compare-ref", compare]
-        else:
-            ui.info(
-                t(
-                    "Not a git repository: scanned as a plain folder.",
-                    "Bukan repository git: dipindai sebagai folder biasa.",
-                )
-            )
+    argv = ["scan"] + (_url_source() if kind == "url" else _folder_source())
     formats = _formats()
     if formats != "pdf,docx,md":
         argv += ["--format", formats]
-    has_key = credentials.available()
-    use_ai = ask(
-        questionary.confirm(
-            t(
-                "Write a narrative summary with AI? (sends scan facts, never source code, to Anthropic)",
-                "Tulis ringkasan naratif dengan AI? (mengirim fakta hasil scan, bukan source code, ke Anthropic)",
-            ),
-            default=has_key,
-            style=STYLE,
-        )
-    )
-    if use_ai and not has_key:
-        if ask(
-            questionary.confirm(
-                t(
-                    "No Anthropic API key yet. Set it up now?",
-                    "Belum ada API key Anthropic. Atur sekarang?",
-                ),
-                default=True,
-                style=STYLE,
-            )
-        ):
-            from repolens.commands import auth
-
-            use_ai = auth.login() == 0
-            ui.out.print()
-        else:
-            use_ai = False
-    if not use_ai:
+    if not _use_ai():
         argv.append("--no-ai")
     argv += ["--lang", _language()]
     out = _text(t("Output folder", "Folder output"), default="docs-output")
     if out != "docs-output":
         argv += ["--out", out]
     return argv
+
+
+def _url_source() -> list[str]:
+    """A git URL, typed refs to scan and to compare with (the repository is not local)."""
+    url = _text(
+        t("Git URL (https or ssh)", "URL git (https atau ssh)"),
+        validate=lambda v: is_git_url(v.strip()) or t("Not a git URL", "Bukan URL git"),
+    )
+    argv = [url]
+    ref = _text(
+        t(
+            "Tag / branch / commit (empty = default branch)",
+            "Tag / branch / commit (kosong = branch utama)",
+        )
+    )
+    if ref:
+        argv += ["--ref", ref]
+    compare = _text(
+        t(
+            "Compare with ref (empty = no comparison)",
+            "Bandingkan dengan ref (kosong = tanpa pembanding)",
+        )
+    )
+    if compare:
+        argv += ["--compare-ref", compare]
+    return argv
+
+
+SCAN_MODES = [
+    (
+        "git",
+        "Current files, with git  (follows .gitignore, adds commit info)",
+        "File saat ini, dengan git  (mengikuti .gitignore, ada info commit)",
+    ),
+    (
+        "plain",
+        "Current files as a plain folder  (everything on disk, no git)",
+        "File saat ini sebagai folder biasa  (semua file di disk, tanpa git)",
+    ),
+    (
+        "ref",
+        "A tag / branch / commit  (clean release, working tree untouched)",
+        "Tag / branch / commit  (rilis bersih, working tree tidak disentuh)",
+    ),
+]
+
+
+def _folder_source() -> list[str]:
+    """A local folder; in a git repository also how to read it and what to compare with."""
+    folder = _folder(t("Folder", "Folder"))
+    if not _is_git_repo(folder):
+        ui.info(
+            t(
+                "Not a git repository: scanned as a plain folder.",
+                "Bukan repository git: dipindai sebagai folder biasa.",
+            )
+        )
+        return [folder]
+    modes = [Choice(t(en, id), value) for value, en, id in SCAN_MODES]
+    mode = select(t("What to scan", "Yang dipindai"), modes)
+    if mode == "plain":
+        return [folder, "--no-git"]
+    argv, ref = [folder], None
+    if mode == "ref":
+        ref = _pick_ref(folder, t("Release to scan", "Rilis yang dipindai"))
+        argv += ["--ref", ref]
+    question = t("Compare with an earlier release?", "Bandingkan dengan rilis sebelumnya?")
+    compare = _pick_ref(folder, question, exclude=ref, allow_none=True)
+    if compare:
+        argv += ["--compare-ref", compare]
+    return argv
+
+
+def _use_ai() -> bool:
+    """Ask about the AI summary; without a key, offer to set one up right away."""
+    has_key = credentials.available()
+    question = t(
+        "Write a narrative summary with AI? (sends scan facts, never source code, to Anthropic)",
+        "Tulis ringkasan naratif dengan AI? (mengirim fakta hasil scan, bukan source code, "
+        "ke Anthropic)",
+    )
+    if not ask(questionary.confirm(question, default=has_key, style=STYLE)):
+        return False
+    if has_key:
+        return True
+    setup = t(
+        "No Anthropic API key yet. Set it up now?", "Belum ada API key Anthropic. Atur sekarang?"
+    )
+    if not ask(questionary.confirm(setup, default=True, style=STYLE)):
+        return False
+    from repolens.commands import auth  # imported here: only needed in this case
+
+    ok = auth.login() == 0
+    ui.out.print()
+    return ok
 
 
 def _auth_flow() -> list[str]:

@@ -66,41 +66,44 @@ SCHEMA = {
     "additionalProperties": False,
 }
 
-SYSTEM = """You are a senior technical writer documenting a software repository for developers and product owners.
-You receive facts that a static scanner extracted from the repository. Write the requested JSON in {language}.
-
-Rules:
-- Use only the provided facts. Never invent endpoints, versions, tables, env keys, or features.
-- When a fact is missing or ambiguous, say plainly that it cannot be determined from the repository.
-- folder_descriptions: describe each path listed under "directories" that matters to a reader (skip generated or platform boilerplate folders unless notable). Keep each description to one sentence.
-- modules: the functional modules/features of the application, inferred from folder names, routes, and endpoints.
-- setup_steps: concrete steps to run the project locally, based on the detected stack, manifests, scripts, and env files.
-- observations: risks or notable points supported by the facts (outdated or mismatched versions, committed env files, secrets, missing lock files, missing tests, etc.). Each item is one sentence."""
+# The instructions for the model. {language} is filled in per request.
+SYSTEM = (
+    "You are a senior technical writer documenting a software repository for developers "
+    "and product owners.\n"
+    "You receive facts that a static scanner extracted from the repository. Write the "
+    "requested JSON in {language}.\n"
+    "\n"
+    "Rules:\n"
+    "- Use only the provided facts. Never invent endpoints, versions, tables, env keys, "
+    "or features.\n"
+    "- When a fact is missing or ambiguous, say plainly that it cannot be determined from"
+    " the repository.\n"
+    '- folder_descriptions: describe each path listed under "directories" that matters to'
+    " a reader (skip generated or platform boilerplate folders unless notable). Keep each"
+    " description to one sentence.\n"
+    "- modules: the functional modules/features of the application, inferred from folder "
+    "names, routes, and endpoints.\n"
+    "- setup_steps: concrete steps to run the project locally, based on the detected "
+    "stack, manifests, scripts, and env files.\n"
+    "- observations: risks or notable points supported by the facts (outdated or "
+    "mismatched versions, committed env files, secrets, missing lock files, missing "
+    "tests, etc.). Each item is one sentence."
+)
 
 
 def _compact(facts: dict) -> dict:
+    """The facts sent to the model: trimmed lists, no file contents, no env values or secrets."""
     eps = facts["endpoints"]
-
-    def ep_list(items, limit):
-        return [
-            f"{e['method']} {e['path']} -> {e.get('handler') or ''} [{e.get('group') or ''}]"
-            for e in items[:limit]
-        ]
-
-    manifests = []
-    for m in facts["dependencies"]:
-        manifests.append(
-            {
-                "manifest": m["manifest"],
-                "ecosystem": m["ecosystem"],
-                "runtime": m.get("runtime"),
-                "scripts": list((m.get("scripts") or {}).keys())[:20],
-                "dependencies": [
-                    f"{d['name']} {d.get('resolved') or d.get('declared') or d.get('source') or ''} ({d['scope']})"
-                    for d in m["dependencies"][:80]
-                ],
-            }
-        )
+    manifests = [
+        {
+            "manifest": m["manifest"],
+            "ecosystem": m["ecosystem"],
+            "runtime": m.get("runtime"),
+            "scripts": list((m.get("scripts") or {}).keys())[:20],
+            "dependencies": [_dependency_line(d) for d in m["dependencies"][:80]],
+        }
+        for m in facts["dependencies"]
+    ]
     return {
         "project": facts["project"],
         "git": {
@@ -123,9 +126,9 @@ def _compact(facts: dict) -> dict:
             "server_count": len(eps["server"]),
             "client_count": len(eps["client"]),
             "page_count": len(eps["pages"]),
-            "server": ep_list(eps["server"], 80),
-            "client": ep_list(eps["client"], 80),
-            "pages": ep_list(eps["pages"], 40),
+            "server": _endpoint_lines(eps["server"], 80),
+            "client": _endpoint_lines(eps["client"], 80),
+            "pages": _endpoint_lines(eps["pages"], 40),
             "notes": eps["notes"],
         },
         "database": {
@@ -153,29 +156,66 @@ def _compact(facts: dict) -> dict:
     }
 
 
+def _dependency_line(dependency: dict) -> str:
+    """ "dio 5.4.0 (runtime)": the installed version when known, else the declared one."""
+    d = dependency
+    version = d.get("resolved") or d.get("declared") or d.get("source") or ""
+    return f"{d['name']} {version} ({d['scope']})"
+
+
+def _endpoint_lines(items: list[dict], limit: int) -> list[str]:
+    """ "GET /users -> UserController@index [api.php]" for the first `limit` endpoints."""
+    return [
+        f"{e['method']} {e['path']} -> {e.get('handler') or ''} [{e.get('group') or ''}]"
+        for e in items[:limit]
+    ]
+
+
 def _quiet(message: str, kind: str = "step") -> None:
     pass
+
+
+class _Skipped(Exception):
+    """The AI part cannot be produced; the message says why (shown as a warning)."""
 
 
 def generate(
     facts: dict, language: str | None = None, model: str = DEFAULT_MODEL, log=_quiet
 ) -> dict | None:
-    """Return the AI narrative, or None (with the reason sent to `log(message, "warn")`) when it cannot be produced."""
-    language = language or LANGUAGES[get_lang()]
-    skipped = t("AI skipped: ", "AI dilewati: ")
-    no_creds = skipped + t(
-        "no Anthropic API key. Run `repolens auth login`, or set ANTHROPIC_API_KEY.",
-        "belum ada API key Anthropic. Jalankan `repolens auth login`, atau set ANTHROPIC_API_KEY.",
-    )
+    """The AI narrative for these facts, or None when it cannot be produced.
+
+    The reason for a None is sent to `log(message, "warn")`, so the scan can go on without it."""
     try:
-        client = credentials.anthropic_client()
-    except Exception:  # missing credentials surface here in some SDK versions
-        log(no_creds, "warn")
+        response = _request(_client(), facts, model, language or LANGUAGES[get_lang()])
+        return _parse(response)
+    except _Skipped as reason:
+        log(t("AI skipped: ", "AI dilewati: ") + str(reason), "warn")
         return None
+
+
+def _no_key() -> _Skipped:
+    return _Skipped(
+        t(
+            "no Anthropic API key. Run `repolens auth login`, or set ANTHROPIC_API_KEY.",
+            "belum ada API key Anthropic. Jalankan `repolens auth login`, atau set "
+            "ANTHROPIC_API_KEY.",
+        )
+    )
+
+
+def _client():
+    try:
+        return credentials.anthropic_client()
+    except Exception:  # missing credentials surface here in some SDK versions
+        raise _no_key() from None
+
+
+def _request(client, facts: dict, model: str, language: str):
+    """Ask the model for the narrative as JSON that follows SCHEMA."""
     payload = json.dumps(_compact(facts), ensure_ascii=False, indent=1)
     try:
-        # Streaming: thinking tokens count toward max_tokens, and a large repo needs a large JSON answer.
-        # A non-streaming request that big would risk the SDK's HTTP timeout.
+        # Streaming: thinking tokens count toward max_tokens, and a large repo needs a large
+        # JSON answer. A non-streaming request that big would risk the SDK's HTTP timeout.
         with client.beta.messages.stream(
             model=model,
             max_tokens=64000,
@@ -185,62 +225,41 @@ def generate(
             output_config={"format": {"type": "json_schema", "schema": SCHEMA}},
             messages=[{"role": "user", "content": f"Repository facts:\n```json\n{payload}\n```"}],
         ) as stream:
-            response = stream.get_final_message()
+            return stream.get_final_message()
     except anthropic.AuthenticationError:
-        log(
-            skipped
-            + t(
-                "the Anthropic API key is invalid. Check it with `repolens auth status`.",
-                "API key Anthropic tidak valid. Cek dengan `repolens auth status`.",
-            ),
-            "warn",
+        reason = t(
+            "the Anthropic API key is invalid. Check it with `repolens auth status`.",
+            "API key Anthropic tidak valid. Cek dengan `repolens auth status`.",
         )
-        return None
     except anthropic.RateLimitError:
-        log(
-            skipped
-            + t(
-                "rate limited. Try again in a moment, or run with --no-ai.",
-                "kena rate limit. Coba lagi beberapa saat, atau jalankan dengan --no-ai.",
-            ),
-            "warn",
+        reason = t(
+            "rate limited. Try again in a moment, or run with --no-ai.",
+            "kena rate limit. Coba lagi beberapa saat, atau jalankan dengan --no-ai.",
         )
-        return None
     except anthropic.APIStatusError as exc:
-        log(skipped + f"API error {exc.status_code}: {exc.message}", "warn")
-        return None
+        reason = f"API error {exc.status_code}: {exc.message}"
     except anthropic.APIConnectionError:
-        log(
-            skipped
-            + t("cannot connect to the Anthropic API.", "tidak bisa terhubung ke Anthropic API."),
-            "warn",
-        )
-        return None
+        reason = t("cannot connect to the Anthropic API.", "tidak bisa terhubung ke Anthropic API.")
     except anthropic.APIError as exc:
-        log(skipped + str(exc), "warn")
-        return None
-    except TypeError:
-        # Raised by the SDK when no credential source can be resolved.
-        log(no_creds, "warn")
-        return None
+        reason = str(exc)
+    except TypeError:  # raised by the SDK when no credential source can be resolved
+        raise _no_key() from None
+    raise _Skipped(reason)
 
+
+def _parse(response) -> dict:
+    """The JSON answer, with the model and token usage added."""
     if response.stop_reason == "refusal":
-        log(
-            skipped + t("the model declined the request.", "permintaan ditolak oleh model."), "warn"
-        )
-        return None
+        raise _Skipped(t("the model declined the request.", "permintaan ditolak oleh model."))
     if response.stop_reason == "max_tokens":
-        log(
-            skipped + t("the answer was cut off (max_tokens).", "jawaban terpotong (max_tokens)."),
-            "warn",
-        )
-        return None
+        raise _Skipped(t("the answer was cut off (max_tokens).", "jawaban terpotong (max_tokens)."))
     text = next((b.text for b in response.content if b.type == "text"), "")
     try:
         result = json.loads(text)
     except json.JSONDecodeError:
-        log(skipped + t("the answer is not valid JSON.", "jawaban bukan JSON yang valid."), "warn")
-        return None
+        raise _Skipped(
+            t("the answer is not valid JSON.", "jawaban bukan JSON yang valid.")
+        ) from None
     result["model"] = response.model
     result["usage"] = {
         "input_tokens": response.usage.input_tokens,

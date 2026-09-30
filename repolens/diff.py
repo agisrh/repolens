@@ -1,4 +1,8 @@
-"""Compare two scans (e.g. previous release vs current) into a structured change list."""
+"""Compare two scans (e.g. the previous release and this one) into a list of changes per area.
+
+Used by `scan --compare-ref` / `--compare` (the Changes section of the document) and by
+`repolens diff`. Change kinds are language-neutral codes; i18n.label() shows them.
+"""
 
 from __future__ import annotations
 
@@ -6,6 +10,7 @@ from repolens.i18n import t
 
 
 def _label(facts: dict) -> str:
+    """Name of the release a scan describes (like document.release_label)."""
     git = facts.get("git") or {}
     return (
         (facts.get("source") or {}).get("ref")
@@ -17,6 +22,7 @@ def _label(facts: dict) -> str:
 
 
 def _flatten(d, prefix=""):
+    """{"android": {"min_sdk": 21}} -> {"android.min_sdk": 21}; lists become text."""
     out = {}
     for k, v in (d or {}).items():
         key = f"{prefix}{k}"
@@ -30,120 +36,144 @@ def _flatten(d, prefix=""):
 
 
 def compare(old: dict, new: dict) -> dict:
-    changes: dict = {"from": _label(old), "to": _label(new)}
-
-    of = {f["name"]: f["version"] for f in old["frameworks"]}
-    nf = {f["name"]: f["version"] for f in new["frameworks"]}
-    changes["frameworks"] = (
-        [{"name": n, "change": "added", "old": None, "new": nf[n]} for n in nf if n not in of]
-        + [{"name": n, "change": "removed", "old": of[n], "new": None} for n in of if n not in nf]
-        + [
-            {"name": n, "change": "changed", "old": of[n], "new": nf[n]}
-            for n in nf
-            if n in of and of[n] != nf[n]
-        ]
-    )
-
-    def dep_map(facts):
-        result = {}
-        for m in facts["dependencies"]:
-            for d in m["dependencies"]:
-                result[(m["ecosystem"], d["name"])] = (
-                    d.get("resolved") or d.get("declared") or d.get("source")
-                )
-        return result
-
-    od, nd = dep_map(old), dep_map(new)
-    changes["dependencies"] = sorted(
-        [
-            {"ecosystem": k[0], "name": k[1], "change": "added", "old": None, "new": nd[k]}
-            for k in nd
-            if k not in od
-        ]
-        + [
-            {"ecosystem": k[0], "name": k[1], "change": "removed", "old": od[k], "new": None}
-            for k in od
-            if k not in nd
-        ]
-        + [
-            {"ecosystem": k[0], "name": k[1], "change": "changed", "old": od[k], "new": nd[k]}
-            for k in nd
-            if k in od and od[k] != nd[k]
-        ],
-        key=lambda c: (c["change"], c["name"]),
-    )
-
-    def ep_set(facts):
-        result = {}
-        for kind in ("server", "client", "pages"):
-            for e in facts["endpoints"][kind]:
-                result[(kind, e["method"], e["path"])] = e
-        return result
-
-    oe, ne = ep_set(old), ep_set(new)
-    changes["endpoints"] = sorted(
-        [
-            {"kind": k[0], "method": k[1], "path": k[2], "change": "added", "file": ne[k]["file"]}
-            for k in ne
-            if k not in oe
-        ]
-        + [
-            {"kind": k[0], "method": k[1], "path": k[2], "change": "removed", "file": oe[k]["file"]}
-            for k in oe
-            if k not in ne
-        ],
-        key=lambda c: (c["kind"], c["change"], c["path"]),
-    )
-
-    ot = {tbl["name"]: {c["name"] for c in tbl["columns"]} for tbl in old["database"]["tables"]}
-    nt = {tbl["name"]: {c["name"] for c in tbl["columns"]} for tbl in new["database"]["tables"]}
-    tables = [
-        {"table": n, "change": "table_added", "detail": ", ".join(sorted(nt[n]))}
-        for n in nt
-        if n not in ot
-    ]
-    tables += [{"table": n, "change": "table_removed", "detail": ""} for n in ot if n not in nt]
-    for n in nt:
-        if n in ot:
-            added, removed = nt[n] - ot[n], ot[n] - nt[n]
-            if added:
-                tables.append(
-                    {"table": n, "change": "columns_added", "detail": ", ".join(sorted(added))}
-                )
-            if removed:
-                tables.append(
-                    {"table": n, "change": "columns_removed", "detail": ", ".join(sorted(removed))}
-                )
-    changes["database"] = tables
-
-    def env_keys(facts):
-        return {k for e in facts["config"]["env_files"] for k in e["keys"]}
-
-    ok, nk = env_keys(old), env_keys(new)
-    changes["env"] = [{"key": k, "change": "added"} for k in sorted(nk - ok)] + [
-        {"key": k, "change": "removed"} for k in sorted(ok - nk)
-    ]
-
-    op, np_ = _flatten(old.get("platforms")), _flatten(new.get("platforms"))
-    changes["platforms"] = [
-        {"setting": k, "old": op.get(k), "new": np_.get(k)}
-        for k in sorted(set(op) | set(np_))
-        if op.get(k) != np_.get(k) and not k.endswith(".file")
-    ]
-
-    changes["stats"] = {
-        "files": (old["tree"]["total_files"], new["tree"]["total_files"]),
-        "lines": (
-            sum(l["lines"] for l in old["languages"]),
-            sum(l["lines"] for l in new["languages"]),
-        ),
+    """What changed from the `old` scan to the `new` one, per area."""
+    changes = {
+        "from": _label(old),
+        "to": _label(new),
+        "frameworks": _frameworks(old, new),
+        "dependencies": _dependencies(old, new),
+        "endpoints": _endpoints(old, new),
+        "database": _tables(old, new),
+        "env": _env_keys(old, new),
+        "platforms": _platforms(old, new),
+        "stats": {
+            "files": (old["tree"]["total_files"], new["tree"]["total_files"]),
+            "lines": (_lines(old), _lines(new)),
+        },
     }
     if old.get("git", {}).get("commit") and new.get("git", {}).get("commit"):
         changes["commits"] = {"from": old["git"]["commit_short"], "to": new["git"]["commit_short"]}
     return changes
 
 
+def _changes(old: dict, new: dict, with_changed: bool = True) -> list[tuple]:
+    """(key, "added" | "removed" | "changed", old value, new value) between two mappings:
+    added keys in `new` order, then removed keys in `old` order, then changed values."""
+    result = [(key, "added", None, new[key]) for key in new if key not in old]
+    result += [(key, "removed", old[key], None) for key in old if key not in new]
+    if with_changed:
+        result += [
+            (key, "changed", old[key], new[key])
+            for key in new
+            if key in old and old[key] != new[key]
+        ]
+    return result
+
+
+def _frameworks(old: dict, new: dict) -> list[dict]:
+    before = {f["name"]: f["version"] for f in old["frameworks"]}
+    after = {f["name"]: f["version"] for f in new["frameworks"]}
+    return [
+        {"name": name, "change": change, "old": was, "new": now}
+        for name, change, was, now in _changes(before, after)
+    ]
+
+
+def _dependencies(old: dict, new: dict) -> list[dict]:
+    """Per (ecosystem, package): the installed version, else the declared one."""
+
+    def versions(facts: dict) -> dict:
+        return {
+            (m["ecosystem"], d["name"]): d.get("resolved") or d.get("declared") or d.get("source")
+            for m in facts["dependencies"]
+            for d in m["dependencies"]
+        }
+
+    items = [
+        {"ecosystem": key[0], "name": key[1], "change": change, "old": was, "new": now}
+        for key, change, was, now in _changes(versions(old), versions(new))
+    ]
+    return sorted(items, key=lambda c: (c["change"], c["name"]))
+
+
+def _endpoints(old: dict, new: dict) -> list[dict]:
+    """Endpoints added or removed, by (kind, method, path); moving to another file is no change."""
+
+    def by_key(facts: dict) -> dict:
+        return {
+            (kind, e["method"], e["path"]): e
+            for kind in ("server", "client", "pages")
+            for e in facts["endpoints"][kind]
+        }
+
+    items = [
+        {
+            "kind": key[0],
+            "method": key[1],
+            "path": key[2],
+            "change": change,
+            "file": (now or was)["file"],
+        }
+        for key, change, was, now in _changes(by_key(old), by_key(new), with_changed=False)
+    ]
+    return sorted(items, key=lambda c: (c["kind"], c["change"], c["path"]))
+
+
+def _tables(old: dict, new: dict) -> list[dict]:
+    """Tables added or removed, and columns added or removed in tables that stayed."""
+    before = {x["name"]: {c["name"] for c in x["columns"]} for x in old["database"]["tables"]}
+    after = {x["name"]: {c["name"] for c in x["columns"]} for x in new["database"]["tables"]}
+    items = [
+        {"table": name, "change": "table_added", "detail": ", ".join(sorted(after[name]))}
+        for name in after
+        if name not in before
+    ]
+    items += [
+        {"table": name, "change": "table_removed", "detail": ""}
+        for name in before
+        if name not in after
+    ]
+    for name in after:
+        if name not in before:
+            continue
+        added, removed = after[name] - before[name], before[name] - after[name]
+        if added:
+            items.append(
+                {"table": name, "change": "columns_added", "detail": ", ".join(sorted(added))}
+            )
+        if removed:
+            items.append(
+                {"table": name, "change": "columns_removed", "detail": ", ".join(sorted(removed))}
+            )
+    return items
+
+
+def _env_keys(old: dict, new: dict) -> list[dict]:
+    def keys(facts: dict) -> set:
+        return {key for env in facts["config"]["env_files"] for key in env["keys"]}
+
+    before, after = keys(old), keys(new)
+    return [{"key": k, "change": "added"} for k in sorted(after - before)] + [
+        {"key": k, "change": "removed"} for k in sorted(before - after)
+    ]
+
+
+def _platforms(old: dict, new: dict) -> list[dict]:
+    """Changed platform settings such as android.min_sdk (file paths are not settings)."""
+    before, after = _flatten(old.get("platforms")), _flatten(new.get("platforms"))
+    return [
+        {"setting": key, "old": before.get(key), "new": after.get(key)}
+        for key in sorted(set(before) | set(after))
+        if before.get(key) != after.get(key) and not key.endswith(".file")
+    ]
+
+
+def _lines(facts: dict) -> int:
+    return sum(language["lines"] for language in facts["languages"])
+
+
 def is_empty(changes: dict) -> bool:
+    """True when nothing in any area changed (file and line counts do not count)."""
     return not any(
         changes.get(k)
         for k in ("frameworks", "dependencies", "endpoints", "database", "env", "platforms")

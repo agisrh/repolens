@@ -56,7 +56,10 @@ def version_tuple(version: str) -> tuple[int, ...]:
 
 
 def pip_url(repo: str, tag: str) -> str:
-    """git@github.com:org/repo.git -> git+ssh://git@github.com/org/repo.git@tag (https URLs become git+https)."""
+    """The pip requirement for a tag of the repository.
+
+    git@github.com:org/repo.git -> git+ssh://git@github.com/org/repo.git@tag
+    https://github.com/org/repo.git -> git+https://github.com/org/repo.git@tag"""
     scp = re.match(r"^([\w.-]+@[\w.-]+):(.+)$", repo)
     if scp:
         repo = f"ssh://{scp.group(1)}/{scp.group(2)}"
@@ -111,8 +114,8 @@ def update(check_only: bool = False) -> int:
     if not tag:
         ui.error(
             t(
-                f"Cannot read the releases of {repo}. Check your network and your access to the repository "
-                "(set REPOLENS_REPO when installed from another location).",
+                f"Cannot read the releases of {repo}. Check your network and your access to "
+                "the repository (set REPOLENS_REPO when installed from another location).",
                 f"Tidak bisa membaca rilis dari {repo}. Cek jaringan dan akses Anda ke repository "
                 "(set REPOLENS_REPO jika dipasang dari lokasi lain).",
             )
@@ -136,7 +139,8 @@ def update(check_only: bool = False) -> int:
     if kind == "editable":
         ui.warn(
             t(
-                "RepoLens runs from a source folder (editable install); update it with git instead:",
+                "RepoLens runs from a source folder (editable install); update it with git "
+                "instead:",
                 "RepoLens berjalan dari folder source (editable install); update lewat git:",
             )
         )
@@ -149,17 +153,19 @@ def update(check_only: bool = False) -> int:
             t("Install it with: repolens update", "Pasang dengan: repolens update"), indent="  "
         )
         return 0
-    command = install_command(kind, pip_url(repo, tag))
+    _install(kind, pip_url(repo, tag), tag)
+    return 0
+
+
+def _install(kind: str, url: str, tag: str) -> None:
+    """Install `url` with pipx or pip; a failure shows the last lines of the installer output."""
+    command = install_command(kind, url)
     with ui.task(
         t(f"Installing {tag} with {kind}", f"Memasang {tag} dengan {kind}"),
         t(f"Updated to {tag}", f"Diperbarui ke {tag}"),
     ):
         result = subprocess.run(command, capture_output=True, text=True)
-        if result.returncode != 0:
-            raise RuntimeError(
-                t("Update failed: ", "Update gagal: ")
-                + " ".join(command)
-                + "\n"
-                + "\n".join((result.stderr or result.stdout).strip().splitlines()[-8:])
-            )
-    return 0
+        if result.returncode != 0:  # raised inside the task, so no "✓ Updated" line is shown
+            output = (result.stderr or result.stdout).strip().splitlines()[-8:]
+            failed = t("Update failed: ", "Update gagal: ") + " ".join(command)
+            raise RuntimeError(failed + "\n" + "\n".join(output))

@@ -1,11 +1,14 @@
-"""Framework detection (with versions), mobile platform settings, and infrastructure/CI."""
+"""Frameworks, libraries, and language runtimes, with the version of each and where it came from.
+
+Most come from the dependency manifests via FRAMEWORK_RULES; a few (CodeIgniter, Laravel
+without a lock file, Flutter pinned by FVM) are recognised from files instead. To recognise
+another framework from its package, add a row to FRAMEWORK_RULES.
+"""
 
 from __future__ import annotations
 
 import json
 import re
-
-import yaml
 
 from repolens.i18n import t
 from repolens.repo import Repo
@@ -84,226 +87,120 @@ FRAMEWORK_RULES = [
 ]
 
 
-def _version(dep: dict) -> str | None:
-    return dep.get("resolved") or dep.get("declared")
+RUNTIMES = [  # manifest runtime key -> (name, category)
+    ("php", "PHP", "Language"),
+    ("java", "Java", "Language"),
+    ("node", "Node.js", "Runtime"),
+    ("go", "Go", "Language"),
+    ("python", "Python", "Language"),
+]
+
+
+class _Found(dict):
+    """name -> framework entry. A later source only replaces an entry that had no version."""
+
+    def add(self, name: str, category: str, version, source: str) -> None:
+        if name not in self or (version and not self[name]["version"]):
+            self[name] = {"name": name, "category": category, "version": version, "source": source}
 
 
 def frameworks(repo: Repo, manifests: list[dict]) -> list[dict]:
-    found: dict[str, dict] = {}
+    """Sorted by category, then name."""
+    found = _Found()
+    for manifest in manifests:
+        _from_dependencies(found, manifest)
+        _spring_boot(found, manifest)
+        if manifest["ecosystem"].startswith("Dart"):
+            _flutter(found, repo, manifest)
+        _runtimes(found, manifest)
+    _from_files(found, repo)
+    return sorted(found.values(), key=lambda f: (f["category"], f["name"]))
 
-    def add(name, category, version, source):
-        if name not in found or (version and not found[name]["version"]):
-            found[name] = {"name": name, "category": category, "version": version, "source": source}
 
-    for m in manifests:
-        eco = m["ecosystem"]
-        by_name = {d["name"]: d for d in m["dependencies"]}
-        for name, category, prefix, dep_names in FRAMEWORK_RULES:
-            if not eco.startswith(prefix):
-                continue
-            for dep_name in dep_names:
-                if dep_name in by_name:
-                    add(name, category, _version(by_name[dep_name]), m["manifest"])
-                    break
-        parent = m.get("parent") or {}
-        if parent.get("artifact") == "spring-boot-starter-parent":
-            add(
-                "Spring Boot",
-                "Backend framework",
-                parent.get("version"),
-                m["manifest"] + " (parent)",
-            )
-        for plugin in m.get("plugins") or []:
-            if plugin["id"] == "org.springframework.boot":
-                add(
-                    "Spring Boot",
-                    "Backend framework",
-                    plugin.get("version"),
-                    m["manifest"] + " (plugin)",
-                )
-        runtime = m.get("runtime") or {}
-        if eco.startswith("Dart"):
-            is_flutter = "flutter" in repo.read(m["manifest"])
-            flutter_version = None
-            for f in (".fvmrc", ".fvm/fvm_config.json"):
-                if repo.root.joinpath(f).exists():
-                    try:
-                        cfg = json.loads(repo.root.joinpath(f).read_text())
-                        flutter_version = cfg.get("flutter") or cfg.get("flutterSdkVersion")
-                    except (OSError, json.JSONDecodeError):
-                        pass
-            if is_flutter:
-                add(
-                    "Flutter",
-                    "Mobile framework",
-                    flutter_version or runtime.get("flutter_sdk_locked"),
-                    ".fvmrc" if flutter_version else m["manifest"],
-                )
-            add("Dart SDK", "Language", runtime.get("dart_sdk"), m["manifest"])
-        if runtime.get("php"):
-            add("PHP", "Language", runtime["php"], m["manifest"])
-        if runtime.get("java"):
-            add("Java", "Language", runtime["java"], m["manifest"])
-        if runtime.get("node"):
-            add("Node.js", "Runtime", runtime["node"], m["manifest"])
-        if runtime.get("go"):
-            add("Go", "Language", runtime["go"], m["manifest"])
-        if runtime.get("python"):
-            add("Python", "Language", str(runtime["python"]), m["manifest"])
+def _from_dependencies(found: _Found, manifest: dict) -> None:
+    """Every FRAMEWORK_RULES entry whose package is a dependency of this manifest."""
+    packages = {d["name"]: d for d in manifest["dependencies"]}
+    for name, category, prefix, package_names in FRAMEWORK_RULES:
+        if not manifest["ecosystem"].startswith(prefix):
+            continue
+        package = next((packages[p] for p in package_names if p in packages), None)
+        if package:
+            version = package.get("resolved") or package.get("declared")
+            found.add(name, category, version, manifest["manifest"])
 
-    # Frameworks detectable only from files.
+
+def _spring_boot(found: _Found, manifest: dict) -> None:
+    """Spring Boot as the Maven parent or the Gradle plugin (not only as a dependency)."""
+    parent = manifest.get("parent") or {}
+    if parent.get("artifact") == "spring-boot-starter-parent":
+        source = manifest["manifest"] + " (parent)"
+        found.add("Spring Boot", "Backend framework", parent.get("version"), source)
+    for plugin in manifest.get("plugins") or []:
+        if plugin["id"] == "org.springframework.boot":
+            source = manifest["manifest"] + " (plugin)"
+            found.add("Spring Boot", "Backend framework", plugin.get("version"), source)
+
+
+def _flutter(found: _Found, repo: Repo, manifest: dict) -> None:
+    """Flutter (the version pinned by FVM, else the one in pubspec.lock) and the Dart SDK."""
+    runtime = manifest.get("runtime") or {}
+    pinned = None
+    for name in (".fvmrc", ".fvm/fvm_config.json"):
+        if repo.root.joinpath(name).exists():
+            try:
+                config = json.loads(repo.root.joinpath(name).read_text())
+                pinned = config.get("flutter") or config.get("flutterSdkVersion")
+            except (OSError, json.JSONDecodeError):
+                pass
+    if "flutter" in repo.read(manifest["manifest"]):
+        version = pinned or runtime.get("flutter_sdk_locked")
+        source = ".fvmrc" if pinned else manifest["manifest"]
+        found.add("Flutter", "Mobile framework", version, source)
+    found.add("Dart SDK", "Language", runtime.get("dart_sdk"), manifest["manifest"])
+
+
+def _runtimes(found: _Found, manifest: dict) -> None:
+    runtime = manifest.get("runtime") or {}
+    for key, name, category in RUNTIMES:
+        if runtime.get(key):
+            version = str(runtime[key]) if key == "python" else runtime[key]
+            found.add(name, category, version, manifest["manifest"])
+
+
+def _from_files(found: _Found, repo: Repo) -> None:
+    """Frameworks recognised from their files, for projects without (complete) manifests."""
     for path in repo.glob("*system/core/CodeIgniter.php"):
-        v = re.search(r"define\(\s*'CI_VERSION'\s*,\s*'([^']+)'", repo.read(path))
-        add("CodeIgniter 3", "Backend framework", v and v.group(1), path)
+        version = re.search(r"define\(\s*'CI_VERSION'\s*,\s*'([^']+)'", repo.read(path))
+        found.add("CodeIgniter 3", "Backend framework", version and version.group(1), path)
     for path in repo.glob("*system/CodeIgniter.php"):
-        v = re.search(r"CI_VERSION\s*=\s*'([^']+)'", repo.read(path))
-        add("CodeIgniter 4", "Backend framework", v and v.group(1), path)
-    # CodeIgniter 4 app without vendor/ checked in: detect from its layout, read the version if vendor exists on disk.
+        version = re.search(r"CI_VERSION\s*=\s*'([^']+)'", repo.read(path))
+        found.add("CodeIgniter 4", "Backend framework", version and version.group(1), path)
     if (
         "CodeIgniter 4" not in found
         and repo.exists("spark")
         and repo.exists("app/Config/Routes.php")
     ):
-        version, source = None, "spark + app/Config/Routes.php"
-        core = repo.root / "vendor/codeigniter4/framework/system/CodeIgniter.php"
-        if core.exists():
-            v = re.search(r"CI_VERSION\s*=\s*'([^']+)'", core.read_text(errors="ignore"))
-            version, source = (v.group(1) if v else None), "vendor/codeigniter4/framework"
-        else:
-            source += t(
-                " (exact version unknown: no vendor/ folder)",
-                " (versi pasti tidak diketahui: vendor/ tidak ada)",
-            )
-        add("CodeIgniter 4", "Backend framework", version, source)
+        found.add("CodeIgniter 4", "Backend framework", *_codeigniter4_without_vendor(repo))
     if "CodeIgniter 3" not in found and repo.exists("application/config/routes.php"):
-        add(
-            "CodeIgniter 3",
-            "Backend framework",
-            None,
-            "application/config/routes.php"
-            + t(" (no system/ folder)", " (folder system/ tidak ada)"),
+        source = "application/config/routes.php" + t(
+            " (no system/ folder)", " (folder system/ tidak ada)"
         )
+        found.add("CodeIgniter 3", "Backend framework", None, source)
     if "Laravel" not in found and repo.exists("artisan") and repo.exists("routes/web.php"):
-        add("Laravel", "Backend framework", None, "artisan + routes/web.php")
+        found.add("Laravel", "Backend framework", None, "artisan + routes/web.php")
     if repo.exists(".nvmrc"):
-        add("Node.js", "Runtime", repo.read(".nvmrc").strip(), ".nvmrc")
-    return sorted(found.values(), key=lambda f: (f["category"], f["name"]))
+        found.add("Node.js", "Runtime", repo.read(".nvmrc").strip(), ".nvmrc")
 
 
-def mobile_platforms(repo: Repo) -> dict:
-    result = {}
-    for gradle in ("android/app/build.gradle", "android/app/build.gradle.kts"):
-        if repo.exists(gradle):
-            text = repo.read(gradle)
-
-            def grab(key):
-                m = re.search(rf"{key}\s*[= ]\s*['\"]?([\w.]+)['\"]?", text)
-                return m.group(1) if m else None
-
-            flavors = []
-            start = re.search(r"productFlavors\s*\{", text)
-            if start:
-                depth, i = 1, start.end()
-                names = []
-                while i < len(text) and depth:
-                    if text[i] == "{":
-                        if depth == 1:
-                            head = text[text.rfind("\n", 0, i) + 1 : i]
-                            n = re.search(r"(?:create\(\")?(\w+)\"?\)?\s*$", head)
-                            if n:
-                                names.append(n.group(1))
-                        depth += 1
-                    elif text[i] == "}":
-                        depth -= 1
-                    i += 1
-                flavors = names
-            result["android"] = {
-                "file": gradle,
-                "application_id": grab("applicationId"),
-                "min_sdk": grab("minSdk(?:Version)?"),
-                "target_sdk": grab("targetSdk(?:Version)?"),
-                "compile_sdk": grab("compileSdk(?:Version)?"),
-                "flavors": flavors,
-                "jvm_target": grab("jvmTarget"),
-            }
-    pbx = "ios/Runner.xcodeproj/project.pbxproj"
-    if repo.exists(pbx):
-        text = repo.read(pbx)
-        targets = sorted(
-            set(re.findall(r"IPHONEOS_DEPLOYMENT_TARGET = ([\d.]+);", text)),
-            key=lambda v: [int(x) for x in v.split(".")],
-        )
-        bundles = sorted(
-            set(
-                b
-                for b in re.findall(r"PRODUCT_BUNDLE_IDENTIFIER = ([^;]+);", text)
-                if "Tests" not in b
-            )
-        )
-        podfile = re.search(r"platform\s*:ios,\s*'([\d.]+)'", repo.read("ios/Podfile"))
-        result["ios"] = {
-            "file": pbx,
-            "deployment_target": targets[-1] if targets else None,
-            "podfile_platform": podfile.group(1) if podfile else None,
-            "bundle_ids": bundles,
-        }
-    for platform in ("web", "macos", "windows", "linux"):
-        if any(f.startswith(platform + "/") for f in repo.files) and repo.exists("pubspec.yaml"):
-            result.setdefault("other", []).append(platform)
-    return result
-
-
-def infrastructure(repo: Repo) -> dict:
-    dockerfiles = []
-    for path in repo.glob("Dockerfile", "*/Dockerfile", "*.Dockerfile", "Dockerfile.*"):
-        images = re.findall(r"^FROM\s+(\S+)", repo.read(path), re.M | re.I)
-        dockerfiles.append({"file": path, "base_images": images})
-    compose = []
-    for path in repo.by_name(
-        "docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"
-    ):
-        try:
-            data = yaml.safe_load(repo.read(path)) or {}
-        except yaml.YAMLError:
-            continue
-        for name, svc in (data.get("services") or {}).items():
-            svc = svc or {}
-            compose.append(
-                {
-                    "file": path,
-                    "service": name,
-                    "image": svc.get("image") or ("build" if svc.get("build") else None),
-                    "ports": [str(p) for p in svc.get("ports") or []],
-                }
-            )
-    ci = []
-    for path in repo.glob(".github/workflows/*.yml", ".github/workflows/*.yaml"):
-        try:
-            data = yaml.safe_load(repo.read(path)) or {}
-        except yaml.YAMLError:
-            data = {}
-        triggers = data.get(True) or data.get("on") or {}
-        trig = (
-            list(triggers.keys())
-            if isinstance(triggers, dict)
-            else ([triggers] if isinstance(triggers, str) else list(triggers))
-        )
-        ci.append(
-            {
-                "system": "GitHub Actions",
-                "file": path,
-                "name": data.get("name"),
-                "triggers": [str(t) for t in trig],
-            }
-        )
-    for name, system in (
-        (".gitlab-ci.yml", "GitLab CI"),
-        ("Jenkinsfile", "Jenkins"),
-        ("bitbucket-pipelines.yml", "Bitbucket Pipelines"),
-        ("azure-pipelines.yml", "Azure Pipelines"),
-        (".circleci/config.yml", "CircleCI"),
-        ("codemagic.yaml", "Codemagic"),
-    ):
-        if repo.exists(name):
-            ci.append({"system": system, "file": name, "name": None, "triggers": []})
-    return {"dockerfiles": dockerfiles, "compose_services": compose, "ci": ci}
+def _codeigniter4_without_vendor(repo: Repo) -> tuple[str | None, str]:
+    """(version, source) for a CodeIgniter 4 app whose vendor/ is not committed: the version
+    is read from vendor/ when it exists on disk, and is unknown otherwise."""
+    core = repo.root / "vendor/codeigniter4/framework/system/CodeIgniter.php"
+    if core.exists():
+        version = re.search(r"CI_VERSION\s*=\s*'([^']+)'", core.read_text(errors="ignore"))
+        return (version.group(1) if version else None), "vendor/codeigniter4/framework"
+    unknown = t(
+        " (exact version unknown: no vendor/ folder)",
+        " (versi pasti tidak diketahui: vendor/ tidak ada)",
+    )
+    return None, "spark + app/Config/Routes.php" + unknown

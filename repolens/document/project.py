@@ -80,7 +80,8 @@ def tech_stack(doc: Blocks, facts: dict) -> None:
     else:
         doc.p(
             t(
-                "No framework was detected automatically. See the Languages and Dependency sections.",
+                "No framework was detected automatically. See the Languages and Dependency "
+                "sections.",
                 "Framework tidak terdeteksi otomatis. Lihat bagian Bahasa dan Dependency.",
             )
         )

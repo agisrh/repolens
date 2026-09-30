@@ -23,7 +23,10 @@ TABLE_PROPERTY = re.compile(
 TABLE_FROM_PROPERTY = re.compile(
     r"(?:db->table|->from)\(\s*\$this->(\w+)\s*(?:\.\s*['\"]\s+(\w+)['\"])?"
 )
-QUERY_BUILDER = r"(?:db->table|DB::table|db->get|db->from|->from|db->get_where|db->insert|db->update|db->delete)"
+QUERY_BUILDER = (
+    r"(?:db->table|DB::table|db->get|db->from|->from"
+    r"|db->get_where|db->insert|db->update|db->delete)"
+)
 # db->table('news n') / DB::table('news as n')
 TABLE_FROM_STRING = re.compile(QUERY_BUILDER + r"\(\s*['\"]([\w.]+)(?:\s+(?:as\s+)?(\w+))?['\"]")
 JOIN = re.compile(r"->join\(\s*['\"](\w+)(?:\s+(?:as\s+)?(\w+))?['\"]\s*,\s*['\"]([^'\"]+)['\"]")

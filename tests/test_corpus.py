@@ -1,4 +1,7 @@
-"""Regression tests on real repositories pinned to a commit (see corpus.yml). Run: pytest -m corpus"""
+"""Regression tests on real repositories pinned to a commit (see corpus.yml).
+
+Run with: pytest -m corpus
+"""
 
 from __future__ import annotations
 
@@ -59,7 +62,8 @@ def _verify(facts: dict, expect: dict):
         missing = [e for e in expect.get(kind, []) if e not in found]
         assert not missing, f"{kind} tidak ditemukan: {missing}"
 
-    # A table can be described by several sources (e.g. schema.sql and a JPA entity): union their columns.
+    # A table can be described by several sources (e.g. schema.sql and a JPA entity):
+    # union their columns.
     tables: dict[str, set] = {}
     for t in facts["database"]["tables"]:
         tables.setdefault(t["name"], set()).update(c["name"] for c in t["columns"])

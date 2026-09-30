@@ -119,7 +119,10 @@ def test_bash_completion_answers(tmp_path):
 
     script.write_text(completion.bash(build_parser()))
     probe = f"""source {script}
-t() {{ COMP_WORDS=("$@"); COMP_CWORD=$((${{#COMP_WORDS[@]}}-1)); COMPREPLY=(); _repolens_completion; echo "${{COMPREPLY[*]}}"; }}
+t() {{
+  COMP_WORDS=("$@"); COMP_CWORD=$((${{#COMP_WORDS[@]}}-1)); COMPREPLY=()
+  _repolens_completion; echo "${{COMPREPLY[*]}}"
+}}
 t repolens au
 t repolens scan . --lang ""
 t repolens auth ""
@@ -129,3 +132,17 @@ t repolens completion f
         ["bash", "-c", probe], capture_output=True, text=True, check=True
     ).stdout.splitlines()
     assert out == ["auth", "en id", "login status logout", "fish"]
+
+
+def test_failed_install_reports_the_installer_output(monkeypatch, capsys):
+    def run(cmd, **kwargs):
+        if cmd[:2] == ["git", "ls-remote"]:
+            return SimpleNamespace(returncode=0, stdout=LS_REMOTE, stderr="")
+        return SimpleNamespace(returncode=1, stdout="", stderr="ERROR: no matching distribution")
+
+    monkeypatch.setattr(selfupdate.subprocess, "run", run)
+    monkeypatch.setattr(selfupdate, "install_kind", lambda: ("pip", None))
+    assert main(["update"]) == 1
+    captured = capsys.readouterr()
+    assert "Update failed" in captured.err and "no matching distribution" in captured.err
+    assert "Updated to" not in captured.out

@@ -16,7 +16,8 @@ def changes(doc: Blocks, facts: dict) -> None:
         doc.p(
             t(
                 "No changes to the stack, dependencies, endpoints, database, env, or platforms.",
-                "Tidak ada perubahan pada stack, dependency, endpoint, database, env, atau platform.",
+                "Tidak ada perubahan pada stack, dependency, endpoint, database, env, atau "
+                "platform.",
             )
         )
     doc.p(_totals(diff))

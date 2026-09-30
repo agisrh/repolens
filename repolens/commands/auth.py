@@ -76,7 +76,9 @@ def run(args) -> int:
 
 
 def login(model: str | None = None, verify: bool = True) -> int:
-    """Ask for (or read) a key, check it, and save it with the chosen model. Also used by the menu."""
+    """Ask for (or read) a key, check it, and save it with the chosen model.
+
+    Also used by the menu when AI is chosen without a key."""
     interactive = sys.stdin.isatty()
     ui.header("Auth", t("Save your Anthropic API key", "Simpan API key Anthropic Anda"))
     env = credentials.env_source()

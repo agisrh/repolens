@@ -70,7 +70,9 @@ def display_path(path: Path) -> str:
 
 
 def load_scan(path: str) -> dict:
-    """Read a scan.json produced by `repolens scan`, with a readable error instead of a traceback."""
+    """Read a scan.json produced by `repolens scan`.
+
+    Raises a readable error (not a traceback) for a missing, invalid, or unrelated file."""
     file = Path(path)
     if not file.is_file():
         raise FileNotFoundError(t("File not found: ", "File tidak ditemukan: ") + str(file))
