@@ -205,12 +205,12 @@ def _export_flow() -> list[str]:
     return argv + ["--lang", _language()]
 
 
-FLOWS = {"auth": _auth_flow, "scan": _scan_flow, "doctor": _doctor_flow, "init": _init_flow, "diff": _diff_flow, "export": _export_flow}
+FLOWS = {"update": lambda: ["update"], "auth": _auth_flow, "scan": _scan_flow, "doctor": _doctor_flow, "init": _init_flow, "diff": _diff_flow, "export": _export_flow}
 
 
 def run() -> list[str] | None:
     """Ask what to do; return the argv for the chosen command, or None to quit."""
-    ui.header(t("Technical documentation from your repositories", "Dokumentasi teknis dari repository Anda"))
+    ui.banner(t("Technical documentation from your repositories", "Dokumentasi teknis dari repository Anda"))
     try:
         action = _select(t("What do you want to do?", "Mau melakukan apa?"), [
             Choice(t("Scan & generate documentation", "Scan & buat dokumentasi"), "scan"),
@@ -219,6 +219,7 @@ def run() -> list[str] | None:
             Choice(t("Re-export documents from scan.json", "Export ulang dokumen dari scan.json"), "export"),
             Choice(t("Create .repolens.yml (init)", "Buat .repolens.yml (init)"), "init"),
             Choice(t("Set up AI (API key & model)", "Atur AI (API key & model)"), "auth"),
+            Choice(t("Update RepoLens", "Update RepoLens"), "update"),
             Separator(),
             Choice(t("Quit", "Keluar"), None),
         ])

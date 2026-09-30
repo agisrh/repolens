@@ -126,7 +126,9 @@ def test_different_project_with_same_name_and_release_is_not_overwritten(tmp_pat
     out = tmp_path / "out"
     assert main(scan_args(a, out)) == 0
     assert main(scan_args(b, out)) == 1
-    assert "already holds documents of another project" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "Two different projects" in err and "git@github.com:org/app-a" in err and "git@github.com:org/app-b" in err
+    assert "`name: app_b`" in err and "--force" in err
     scanned = next(out.glob("*/scan.json"))
     assert json.loads(scanned.read_text())["git"]["remote"] == "git@github.com:org/app-a.git"
     assert main(scan_args(b, out, "--force")) == 0

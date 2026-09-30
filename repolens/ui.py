@@ -15,8 +15,7 @@ from contextlib import contextmanager
 
 from rich.console import Console
 from rich.markup import escape
-from rich.padding import Padding
-from rich.table import Table
+from rich.cells import cell_len
 
 from repolens import __version__
 
@@ -36,6 +35,15 @@ def header(title: str, detail: str | None = None) -> None:
     out.print(f"[bold {BRAND}]repolens[/] [dim]{__version__}[/]  [bold]{escape(title)}[/]")
     if detail:
         out.print(f"[dim]⚙[/] {escape(detail)}")
+    out.print()
+
+
+def banner(subtitle: str) -> None:
+    """Logo shown by the interactive menu."""
+    out.print()
+    out.print(f"  [{BRAND}]╭───╮[/]")
+    out.print(f"  [{BRAND}]│ ◉ │[/]  [bold {BRAND}]RepoLens[/] [dim]{__version__}[/]")
+    out.print(f"  [{BRAND}]╰──╲╯[/]  [dim]{escape(subtitle)}[/]")
     out.print()
 
 
@@ -106,10 +114,13 @@ def summary(title: str, rows: list[tuple[str, str]], subtitle: str | None = None
 
 
 def table(headers: list[str], rows: list[list[str]], indent: int = 2) -> None:
-    """Borderless aligned columns for listings (doctor, diff)."""
-    grid = Table(box=None, show_header=bool(headers), header_style="dim", padding=(0, 2, 0, 0), pad_edge=False)
-    for _ in headers or rows[0]:
-        grid.add_column()
-    for row in rows:
-        grid.add_row(*[escape(str(c)) for c in row])
-    out.print(Padding(grid, (0, 0, 0, indent), expand=False))
+    """Borderless aligned columns for listings (doctor, diff). Lines carry no trailing padding."""
+    lines = ([headers] if headers else []) + [[str(c) for c in row] for row in rows]
+    if not lines:
+        return
+    columns = max(len(line) for line in lines)
+    widths = [max((cell_len(line[i]) for line in lines if i < len(line)), default=0) for i in range(columns)]
+    for n, line in enumerate(lines):
+        cells = [cell + " " * (widths[i] - cell_len(cell)) for i, cell in enumerate(line)]
+        text = escape((" " * indent + "  ".join(cells)).rstrip())
+        out.print(f"[dim]{text}[/]" if headers and n == 0 else text)

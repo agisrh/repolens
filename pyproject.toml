@@ -1,12 +1,29 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "repolens"
-version = "0.3.0"
-description = "Generate dokumentasi teknis (PDF, Word, Markdown) dengan memindai repository."
+version = "0.4.0"
+description = "Generate technical documentation (PDF, Word, Markdown) by scanning a repository."
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{name = "Agis R Herdiana", email = "agis.rahma.herdiana@gmail.com"}]
+keywords = ["documentation", "static-analysis", "cli", "pdf", "docx"]
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Documentation",
+]
 requires-python = ">=3.10"
 dependencies = [
     "anthropic>=1.0",
@@ -19,6 +36,10 @@ dependencies = [
     "keyring>=24",
 ]
 
+[project.urls]
+Repository = "https://github.com/agisrh/repolens"
+Changelog = "https://github.com/agisrh/repolens/blob/main/CHANGELOG.md"
+
 [project.scripts]
 repolens = "repolens.cli:main"
 
@@ -26,9 +47,9 @@ repolens = "repolens.cli:main"
 include = ["repolens*"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "build>=1"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["corpus: repository nyata yang dipatok ke commit (butuh jaringan untuk repo publik)"]
+markers = ["corpus: real repositories pinned to a commit (needs network for public repos, local clones for internal ones)"]
 addopts = "-m 'not corpus'"

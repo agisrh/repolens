@@ -1,106 +1,132 @@
-# repolens
+# RepoLens
 
-CLI untuk membuat dokumentasi teknis dari sebuah repository. Jalankan satu perintah, lalu dapatkan dokumen **PDF**, **Word**, dan **Markdown** berisi struktur folder, tech stack beserta versinya, daftar endpoint, skema database, konfigurasi, dan temuan keamanan. Setiap rilis bisa diekspor sebagai arsip dokumentasi, lengkap dengan perubahan dibanding rilis sebelumnya.
+A command-line tool that turns a repository into technical documentation. Run one command and get **PDF**, **Word**, and **Markdown** documents covering the folder structure, the tech stack with exact versions, endpoints, database schema, configuration, and security findings. Every release can be exported as a documentation archive, including what changed since the previous release.
 
-## Instalasi
+## Installation
+
+Needs Python 3.10+ and `git`. Tested on macOS and Linux.
+
+Install with [pipx](https://pipx.pypa.io), which keeps RepoLens in its own environment:
 
 ```bash
-python3 -m venv .venv
-.venv/bin/pip install -e .
+pipx install git+ssh://git@github.com/agisrh/repolens.git@v0.4.0
+repolens --version
 ```
 
-Butuh Python 3.10+ dan `git`. Untuk AI (opsional): API key Anthropic, atur dengan `repolens auth login`.
-
-## Pemakaian
-
-Jalankan `repolens` tanpa argumen untuk **menu interaktif**: pilih aksi, sumber (folder lokal atau URL git), cara membaca folder, rilis pembanding, format, AI, dan bahasa. Sebelum dijalankan, menu menampilkan perintah yang setara sehingga bisa disalin ke script atau CI.
+Update to the newest release at any time:
 
 ```bash
-# Pindai folder lokal (mengikuti .gitignore), export PDF + Word + Markdown
-repolens scan ../mobile_pos
+repolens update            # installs the newest vX.Y.Z tag
+repolens update --check    # only reports whether one exists
+```
 
-# Pindai folder lokal apa adanya, tanpa git: semua file di disk (termasuk yang di-.gitignore), tanpa info commit/tag
-repolens scan ../mobile_pos --no-git
+For the optional AI summary, save your own Anthropic API key with `repolens auth login` (see [AI](#ai)).
 
-# Dokumen dalam bahasa Indonesia (default: bahasa Inggris, atau REPOLENS_LANG)
-repolens scan ../mobile_pos --lang id
+### Shell completion
 
-# Lihat ringkasan dan temuan tanpa menulis file dan tanpa memanggil AI
-repolens scan ../mobile_pos --dry-run
+```bash
+# zsh: add to ~/.zshrc
+repolens completion zsh > ~/.repolens-completion.zsh && echo 'source ~/.repolens-completion.zsh' >> ~/.zshrc
 
-# Pindai tag rilis tertentu. Working tree Anda tidak disentuh (repo di-clone ke folder sementara).
-repolens scan ../mobile_pos --ref v3.2.0
+# bash: add to ~/.bashrc
+repolens completion bash > ~/.repolens-completion.bash && echo 'source ~/.repolens-completion.bash' >> ~/.bashrc
 
-# Dokumen rilis + perubahan dibanding rilis sebelumnya
-repolens scan ../mobile_pos --ref v3.2.0 --compare-ref v3.1.3
+# fish
+repolens completion fish > ~/.config/fish/completions/repolens.fish
+```
 
-# Langsung dari URL git
-repolens scan git@github.com:KA-Logistik/mobile_pos.git --ref v3.2.0
+Re-run the command after an update so new commands and options are completed too.
 
-# Hanya format tertentu, tanpa AI
+## Usage
+
+Run `repolens` without arguments for the **interactive menu**: pick an action, the source (local folder or git URL), how to read the folder, a release to compare with, formats, AI, and language. Before running, the menu prints the equivalent command so it can be reused in scripts or CI.
+
+```bash
+# Scan a local folder (follows .gitignore) and export PDF + Word + Markdown
+repolens scan ../my-app
+
+# Scan a local folder as it is on disk, without git: every file (including git-ignored ones), no commit/tag info
+repolens scan ../my-app --no-git
+
+# Documents in Indonesian (default: English, or REPOLENS_LANG)
+repolens scan ../my-app --lang id
+
+# Show the summary and findings without writing files or calling AI
+repolens scan ../my-app --dry-run
+
+# Scan a release tag. Your working tree is not touched (the repo is cloned to a temporary folder).
+repolens scan ../my-app --ref v3.2.0
+
+# Release document + changes since the previous release
+repolens scan ../my-app --ref v3.2.0 --compare-ref v3.1.3
+
+# Straight from a git URL
+repolens scan git@github.com:my-org/my-app.git --ref v3.2.0
+
+# Only some formats, without AI
 repolens scan ../backend-api --format pdf,docx --no-ai
 
-# Untuk CI: exit code 1 jika ada bagian yang kemungkinan terlewat
+# In CI: exit code 1 when a section is probably incomplete
 repolens scan . --ref "$TAG" --compare-ref "$PREV_TAG" --no-ai --strict
 
-# Render ulang dari hasil scan tanpa memindai lagi
-repolens export docs-output/mobile_one-v3.2.0/scan.json --format docx
+# Render again from a previous scan, without scanning
+repolens export docs-output/my-app-v3.2.0/scan.json --format docx
 
-# Bandingkan dua hasil scan
-repolens diff docs-output/app-v1.0.0/scan.json docs-output/app-v1.1.0/scan.json
+# Compare two scans
+repolens diff docs-output/my-app-v1.0.0/scan.json docs-output/my-app-v1.1.0/scan.json
 
-# Hasil untuk script: JSON di stdout (scan, doctor, diff)
-repolens doctor ../mobile_pos --json | jq '.coverage[] | select(.level == "warn")'
+# Machine-readable output: JSON on stdout (scan, doctor, diff, auth status)
+repolens doctor ../my-app --json | jq '.coverage[] | select(.level == "warn")'
 ```
 
-### Bahasa
+### Language
 
-Terminal dan dokumen (PDF, Word, Markdown, termasuk narasi AI) memakai bahasa Inggris secara default. Pilih bahasa Indonesia dengan `--lang id`, atau set `REPOLENS_LANG=id` agar berlaku untuk semua perintah. `repolens export` memakai bahasa yang sama dengan saat scan, kecuali `--lang` diberikan. Temuan dan catatan yang dihasilkan saat scan tetap dalam bahasa scan tersebut, jadi scan ulang untuk terjemahan penuh. `scan.json` lama (versi 0.1, berbahasa Indonesia) tetap bisa di-export dan dibandingkan.
+The terminal and the documents (PDF, Word, Markdown, including the AI narrative) are in English by default. Choose Indonesian with `--lang id`, or set `REPOLENS_LANG=id` for every command. `repolens export` uses the language of the scan unless `--lang` is given. Findings and notes produced during a scan stay in that scan's language, so scan again for a full translation. Older `scan.json` files (version 0.1, written in Indonesian) can still be exported and compared.
 
-### Folder lokal: dengan atau tanpa git
+### Local folders: with or without git
 
-| Cara | Perintah | File yang dibaca | Info rilis |
+| Mode | Command | Files read | Release info |
 | :--- | :--- | :--- | :--- |
-| Working tree (default) | `repolens scan <folder>` | File di disk yang tidak di-.gitignore | Commit, branch, tag, remote |
-| Folder biasa | `repolens scan <folder> --no-git` | Semua file di disk, kecuali folder dependency/build (`node_modules`, `vendor`, `build`, ...) dan `ignore` di `.repolens.yml` | Tidak ada |
-| Rilis tertentu | `repolens scan <folder> --ref v1.2.0` | Isi commit tersebut (di-clone ke folder sementara) | Lengkap |
+| Working tree (default) | `repolens scan <folder>` | Files on disk that are not git-ignored | Commit, branch, tag, remote |
+| Plain folder | `repolens scan <folder> --no-git` | Every file on disk, except dependency/build folders (`node_modules`, `vendor`, `build`, ...) and `ignore` in `.repolens.yml` | None |
+| A release | `repolens scan <folder> --ref v1.2.0` | The content of that commit (cloned to a temporary folder) | Full |
 
-Folder yang bukan repository git otomatis dipindai sebagai folder biasa. `--no-git` tidak bisa digabung dengan `--ref`, `--compare-ref`, atau URL git.
+A folder that is not a git repository is scanned as a plain folder automatically. `--no-git` cannot be combined with `--ref`, `--compare-ref`, or a git URL.
 
-Hasil ada di `docs-output/<proyek>-<rilis>/`:
+Output goes to `docs-output/<project>-<release>/`:
 
 ```text
-docs-output/mobile_one-v3.2.0/
-├── mobile_one-v3.2.0.pdf
-├── mobile_one-v3.2.0.docx
-├── mobile_one-v3.2.0.md
-└── scan.json          # data mentah hasil scan, dipakai untuk export ulang dan perbandingan
+docs-output/my-app-v3.2.0/
+├── my-app-v3.2.0.pdf
+├── my-app-v3.2.0.docx
+├── my-app-v3.2.0.md
+└── scan.json          # raw scan data, used to export again and to compare releases
 ```
 
-Jika folder tujuan sudah berisi dokumen **proyek lain** dengan nama dan rilis yang sama (misalnya dua aplikasi hasil fork dengan `name` dan `version` sama di `pubspec.yaml`), scan dihentikan agar dokumen itu tidak tertimpa. Bedakan lewat `name` di `.repolens.yml`, pakai `--out` lain, atau tambahkan `--force`. Scan ulang proyek yang sama tetap menimpa hasil sebelumnya.
+If the output folder already holds documents of **another project** with the same name and release (for example two forks with the same `name` and `version` in `pubspec.yaml`), the scan stops instead of overwriting them, and tells you how to tell the two apart: a `name` in `.repolens.yml`, another `--out`, or `--force`. Scanning the same project again replaces its previous result.
 
-### Exit code
+### Exit codes
 
-| Kode | Arti |
+| Code | Meaning |
 | :--- | :--- |
-| 0 | Berhasil |
-| 1 | Gagal (input salah, git gagal, file tidak ditemukan), atau ada temuan "perlu dicek" saat memakai `--strict` |
-| 2 | Argumen tidak valid, atau error tak terduga. Jalankan ulang dengan `--debug` (atau `REPOLENS_DEBUG=1`) untuk melihat traceback |
-| 130 | Dibatalkan (Ctrl+C) |
+| 0 | Success |
+| 1 | Failed (bad input, git error, file not found), or something needs attention with `--strict` |
+| 2 | Invalid arguments, or an unexpected error. Run again with `--debug` (or `REPOLENS_DEBUG=1`) for the traceback |
+| 130 | Cancelled (Ctrl+C) |
 
-Git tidak pernah meminta username/password secara interaktif, sehingga tidak menggantung di CI. Siapkan akses lewat SSH key atau credential helper. Token di URL tidak pernah ditampilkan di pesan error maupun dokumen.
+Git never asks for a username or password interactively, so it cannot hang in CI. Set up access with an SSH key or a credential helper. Tokens in URLs are never shown in error messages or documents.
 
-## Proyek dengan struktur berbeda
+## Projects with an unusual layout
 
-Setiap proyek punya variasi sendiri: `vendor/` tidak di-commit, route di file tambahan, tabel tanpa migration, dan sebagainya. Ada tiga alat untuk menanganinya.
+Every project has its own quirks: `vendor/` not committed, routes in extra files, tables without migrations, and so on. Three tools deal with them.
 
-### 1. `repolens doctor`: cek sebelum membuat dokumen
+### 1. `repolens doctor`: check before generating documents
 
 ```bash
-repolens doctor ../web-portal
+repolens doctor ../my-app
 ```
 
-Perintah ini menampilkan apa yang terdeteksi beserta sumbernya, lalu apa yang **kemungkinan terlewat** dan cara melengkapinya. Contoh:
+It shows what was detected and where it came from, then what is **probably missing** and how to fill it in. For example:
 
 ```text
 Coverage
@@ -110,114 +136,135 @@ Coverage
     → They may be reached through auto-routing or dynamically built routes. Add their endpoints under `endpoints` in `.repolens.yml`, ...
 ```
 
-Temuan yang sama juga tampil di terminal setelah `scan`, dan di bagian **Scan Coverage** (*Cakupan Pemindaian* dengan `--lang id`) pada dokumen. Tambahkan `--strict` agar exit code bernilai 1 jika ada temuan (berguna untuk CI).
+The same findings are printed after `scan` and appear in the **Scan Coverage** section of the document. Add `--strict` to exit with code 1 when there are findings (useful in CI).
 
-### 2. `.repolens.yml`: isi yang tidak bisa dideteksi
+### 2. `.repolens.yml`: what cannot be detected
 
 ```bash
-repolens init ../web-portal     # buat template berdasarkan hasil deteksi
+repolens init ../my-app     # create a template from what was detected
 ```
 
-File ini disimpan di root proyek dan ikut di-commit, sehingga berlaku untuk setiap rilis.
+The file lives in the project root and is committed, so it applies to every release.
 
 ```yaml
-name: Web Portal KAI Logistik
-version: 2.1.0                       # jika manifest tidak menyimpan versi
+name: My App
+version: 2.1.0                       # when no manifest records a version
 frameworks:
   - {name: CodeIgniter 4, version: 4.1.3}
-routes:                              # file route di luar lokasi standar
+routes:                              # route files outside the standard locations
   - app/Config/RoutesAdmin.php
-schema:                              # SQL dump tanpa data, ekstensi bebas, boleh di-.gitignore
+schema:                              # schema-only SQL dump, any extension, may be git-ignored
   - database/schema.sql
-ignore:                              # dikecualikan dari pemindaian
+ignore:                              # excluded from the scan
   - public/assets/vendor
-endpoints:                           # endpoint dinamis yang tidak terdeteksi
+endpoints:                           # dynamic endpoints that cannot be detected
   - {method: GET, path: /legacy/export, handler: Legacy::export, note: auto-routing}
-notes:                               # tampil di dokumen
-  - Auto-routing aktif di production.
+notes:                               # shown in the document
+  - Auto-routing is enabled in production.
 tree_depth: 4
 ```
 
-Key yang tidak dikenal atau pola file yang tidak cocok dengan apa pun akan dilaporkan oleh `doctor`.
+`doctor` reports unknown keys and file patterns that match nothing. A `.docgen.yml` from before the rename to RepoLens is still read; `doctor` suggests renaming it.
 
-### 3. Test regresi: perbaikan tidak saling merusak
+### 3. Regression tests: fixes that do not break each other
 
 ```bash
-.venv/bin/pip install -e ".[dev]"
-.venv/bin/pytest                 # fixture sintetis, cepat, tanpa jaringan
-.venv/bin/pytest -m corpus       # repository nyata yang dipatok ke commit (tests/corpus.yml)
+pip install -e ".[dev]"
+pytest                 # synthetic fixtures, fast, no network
+pytest -m corpus       # real repositories pinned to a commit (tests/corpus.yml)
 ```
 
-Saat menemukan proyek yang hasilnya salah:
+When a project comes out wrong:
 
-1. Buat fixture kecil di `tests/fixtures/<nama>/` yang meniru polanya, lalu tambahkan test di `tests/test_fixtures.py`.
-2. Jika repository-nya bisa diakses, tambahkan juga ke `tests/corpus.yml` dengan commit yang diuji dan hasil yang sudah dicek manual.
-3. Perbaiki extractor sampai semua test lolos, bukan hanya test yang baru.
+1. Add a small fixture under `tests/fixtures/<name>/` that mimics the pattern, and a test in `tests/test_fixtures.py`.
+2. If the repository is reachable, also add it to `tests/corpus.yml` with the tested commit and hand-checked results.
+3. Fix the extractor until every test passes, not only the new one.
 
-## Isi dokumen
+CI runs the tests on Python 3.10–3.14 on Linux and macOS for every push and pull request.
 
-| Bagian | Sumber |
+## What the document contains
+
+| Section | Source |
 | :--- | :--- |
-| Ringkasan, arsitektur, modul | AI (opsional), berdasarkan fakta hasil scan |
-| Perubahan dibanding rilis sebelumnya | `--compare-ref` atau `--compare` |
-| Informasi rilis | git: commit, tag, branch, remote (kredensial di URL dibuang) |
-| Tech stack & versi | Manifest + lock file (versi yang benar-benar terpasang) |
-| Struktur folder | File tree, mengikuti `.gitignore` |
-| Endpoint & route | Definisi route server, panggilan API klien, route UI |
-| Database | SQL, migration, entity/model ORM, konfigurasi koneksi |
-| Konfigurasi | **Nama** key env dan config (nilainya tidak pernah dibaca) |
-| Cakupan pemindaian | Hal yang kemungkinan terlewat, beserta cara melengkapinya |
-| Platform & infrastruktur | Android/iOS, Dockerfile, docker-compose, CI/CD |
-| Dependency | Semua package per manifest: deklarasi vs terpasang |
-| Keamanan | Pola token/password/private key, file env yang ikut di-commit. Tingkat *tinggi*, *sedang*, *rendah* (file test dan API key config Firebase klien) |
+| Summary, architecture, modules | AI (optional), based on the scan facts |
+| Changes since the previous release | `--compare-ref` or `--compare` |
+| Release information | git: commit, tag, branch, remote (credentials in URLs are removed) |
+| Tech stack & versions | Manifests + lock files (the versions actually installed) |
+| Folder structure | File tree, following `.gitignore` |
+| Endpoints & routes | Server route definitions, client API calls, UI routes |
+| Database | SQL, migrations, ORM entities/models, connection settings |
+| Configuration | **Names** of env and config keys (values are never read) |
+| Scan coverage | What is probably missing, and how to fill it in |
+| Platforms & infrastructure | Android/iOS, Dockerfile, docker-compose, CI/CD |
+| Dependencies | Every package per manifest: declared vs installed |
+| Security | Token/password/private-key patterns, committed env files. Levels *high*, *medium*, *low* (test files and client Firebase config keys) |
 
-## Stack yang didukung
+## Supported stacks
 
-| Stack | Endpoint | Database | Versi |
+| Stack | Endpoints | Database | Versions |
 | :--- | :--- | :--- | :--- |
-| Spring Boot (Java/Kotlin) | `@*Mapping` + prefix `@RequestMapping` class | JPA `@Entity`, SQL | Maven, Gradle |
-| Laravel | `routes/*.php` termasuk `prefix`/`group`, `resource`, `apiResource` | Migration | `composer.lock` |
-| CodeIgniter 4 | `app/Config/Routes.php` termasuk `group`, `resource` | Migration, Model (`$table`, query builder) | composer, `system/CodeIgniter.php` |
-| CodeIgniter 3 | `application/config/routes.php` | SQL, Model (query builder) | `system/core/CodeIgniter.php` |
-| Next.js | App Router `route.ts`, Pages API, halaman | Prisma, Drizzle, TypeORM | npm/yarn/pnpm lock |
-| React | React Router, panggilan `axios`/`fetch` | - | npm/yarn/pnpm lock |
+| Spring Boot (Java/Kotlin) | `@*Mapping` + class `@RequestMapping` prefix | JPA `@Entity`, SQL | Maven, Gradle |
+| Laravel | `routes/*.php` including `prefix`/`group`, `resource`, `apiResource` | Migrations | `composer.lock` |
+| CodeIgniter 4 | `app/Config/Routes.php` including `group`, `resource` | Migrations, Models (`$table`, query builder) | composer, `system/CodeIgniter.php` |
+| CodeIgniter 3 | `application/config/routes.php` | SQL, Models (query builder) | `system/core/CodeIgniter.php` |
+| Next.js | App Router `route.ts`, Pages API, pages | Prisma, Drizzle, TypeORM | npm/yarn/pnpm lock |
+| React | React Router, `axios`/`fetch` calls | - | npm/yarn/pnpm lock |
 | Express / NestJS | `app.get(...)`, `@Controller` + `@Get` | Prisma, TypeORM, Sequelize (engine) | npm lock |
-| Flutter / Dart | Panggilan API di datasource (Dio, http, wrapper `.call`) | Hive | `pubspec.lock`, `.fvmrc` |
-| Python (FastAPI, Flask, Django) | Decorator route, `urls.py` | Django models | requirements, pyproject |
+| Flutter / Dart | API calls in data sources (Dio, http, `.call` wrappers) | Hive | `pubspec.lock`, `.fvmrc` |
+| Python (FastAPI, Flask, Django) | Route decorators, `urls.py` | Django models | requirements, pyproject |
 | Go (Gin, Echo, Fiber) | `r.GET(...)` | - | `go.mod` |
 
-Untuk stack lain, bagian umum (struktur folder, bahasa, dependency, env, keamanan, git, CI/Docker) tetap terisi.
+For other stacks, the general sections (folder structure, languages, dependencies, env, security, git, CI/Docker) are still filled in.
 
 ## AI
 
-Tanpa `--no-ai`, CLI meminta Claude menulis ringkasan, penjelasan arsitektur, keterangan folder, daftar modul, langkah setup, dan observasi. Jika tidak ada API key, bagian AI dilewati dan dokumen tetap dibuat.
+Unless `--no-ai` is given, RepoLens asks Claude to write a summary, an architecture overview, folder descriptions, a module list, setup steps, and observations. Without an API key the AI part is skipped and the documents are still generated.
 
-### API key dan model milik sendiri
+### Your own API key and model
 
-Setiap pengguna memakai API key Anthropic-nya sendiri:
+Each user brings their own Anthropic API key:
 
 ```bash
-repolens auth login                  # minta key (input tersembunyi) dan pilih model, cek ke Anthropic, lalu simpan
-repolens auth status                 # key yang dipakai (disamarkan: sk-ant-…a1b2), sumbernya, model, dan hasil cek
-repolens auth logout                 # hapus key yang disimpan
+repolens auth login                  # asks for the key (hidden input) and a model, checks it with Anthropic, then saves it
+repolens auth status                 # key in use (masked: sk-ant-…a1b2), where it comes from, the model, and a check
+repolens auth logout                 # removes the saved key
 
-pass show anthropic | repolens auth login --model claude-sonnet-5-5   # non-interaktif: key dibaca dari stdin
+pass show anthropic | repolens auth login --model claude-sonnet-5-5   # non-interactive: the key is read from stdin
 ```
 
-Bisa juga lewat menu (`repolens` → *Atur AI*). Saat memilih ringkasan AI tanpa key, menu langsung menawarkan untuk mengaturnya.
+The menu has the same options (*Set up AI*), and offers to set a key when you choose the AI summary without one.
 
-- **Penyimpanan:** keychain OS (macOS Keychain, Windows Credential Manager, Linux Secret Service). Jika tidak tersedia (misalnya server tanpa GUI, atau `REPOLENS_NO_KEYRING=1`), key disimpan di `~/.config/repolens/credentials.json` dengan izin `600`.
-- **Urutan key yang dipakai:** `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` → key dari `repolens auth login` → profil `ant auth login`. CI cukup memakai env var seperti biasa.
-- **Key tidak pernah** diterima sebagai flag (terlihat di history shell dan `ps`), ditulis ke `.repolens.yml` (ikut di-commit), atau ditampilkan utuh.
-- Key dicek ke Anthropic sebelum disimpan (Models API, tanpa biaya token). Key yang ditolak tidak disimpan.
-- **Model:** `--model` → `REPOLENS_MODEL` → model pilihan di `auth login` → default `claude-opus-5-5`. Pilihan di `auth login`: `claude-opus-5-5` (paling teliti) atau `claude-sonnet-5-5` (lebih cepat, sekitar setengah biayanya). Lokasi folder pengaturan bisa diganti dengan `REPOLENS_CONFIG_DIR`.
+- **Storage:** the OS keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service). When none is available (a headless server, or `REPOLENS_NO_KEYRING=1`), the key goes to `~/.config/repolens/credentials.json` with mode `600`.
+- **Key order:** `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` → the key from `repolens auth login` → an `ant auth login` profile. CI keeps using environment variables as usual.
+- The key is **never** accepted as a flag (it would show up in shell history and `ps`), written to `.repolens.yml` (which is committed), or shown in full.
+- The key is checked with Anthropic before it is saved (Models API, no token cost). A rejected key is not saved.
+- **Model:** `--model` → `REPOLENS_MODEL` → the model chosen at `auth login` → default `claude-opus-5-5`. `auth login` offers `claude-opus-5-5` (most thorough) and `claude-sonnet-5-5` (faster, about half the cost). The settings folder can be moved with `REPOLENS_CONFIG_DIR`.
 
-Yang dikirim ke AI **hanya fakta hasil scan**: nama, versi, path, nama kolom, nama env key, dan potongan README. Isi source code, nilai env, dan cuplikan rahasia tidak pernah dikirim. Gunakan `--no-ai` jika tidak ada data yang boleh keluar sama sekali.
+Only **scan facts** are sent to the AI: names, versions, paths, column names, env key names, and a README excerpt. Source code, env values, and secret snippets are never sent. Use `--no-ai` when no data may leave the machine at all.
 
-Model default: `claude-opus-5-5`, dengan server-side fallback (`fallbacks: "default"`) jika permintaan ditolak oleh classifier.
+Requests use server-side fallback (`fallbacks: "default"`) in case a request is declined by a safety classifier.
 
-## Keterbatasan
+## Environment variables
 
-- Analisis statis: kode tidak dijalankan. Route yang dibentuk saat runtime (auto-routing, route dari database, prefix yang dirakit dinamis) bisa tidak terdeteksi. Dokumen mencatat hal ini jika terdeteksi.
-- Pemindaian keamanan hanya memeriksa file saat ini, bukan riwayat git.
-- Font PDF memakai Arial Unicode/Menlo (macOS) atau DejaVu (Linux). Tanpa font tersebut, karakter khusus diganti versi ASCII-nya.
+| Variable | Purpose |
+| :--- | :--- |
+| `REPOLENS_LANG` | Output language, `en` or `id` |
+| `REPOLENS_MODEL` | Claude model for the AI summary |
+| `REPOLENS_DEBUG` | Show full tracebacks on unexpected errors |
+| `REPOLENS_CONFIG_DIR` | Where settings and the fallback credentials file live |
+| `REPOLENS_NO_KEYRING` | Store the API key in a file instead of the OS keychain |
+| `REPOLENS_REPO` | Repository `repolens update` installs from (default `git@github.com:agisrh/repolens.git`) |
+| `ANTHROPIC_API_KEY` | API key; takes priority over the saved one |
+
+The names from before the rename (`DOCGEN_LANG`, `DOCGEN_DEBUG`) still work.
+
+## Limitations
+
+- Static analysis: code is never run. Routes built at runtime (auto-routing, routes from a database, dynamically assembled prefixes) may be missed. The document says so when it notices.
+- The security scan looks at the current files only, not the git history.
+- PDF fonts use Arial Unicode/Menlo (macOS) or DejaVu (Linux). Without them, special characters are replaced by ASCII equivalents.
+- Windows is not tested yet.
+
+## License
+
+[MIT](LICENSE)

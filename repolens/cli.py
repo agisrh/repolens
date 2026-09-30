@@ -7,6 +7,8 @@
   repolens export <scan.json>      render documents again from a previous scan
   repolens diff <old.json> <new.json>
   repolens auth login|status|logout   your own Anthropic API key and model for the AI summary
+  repolens update [--check]      install the newest release
+  repolens completion bash|zsh|fish
 
 Every command takes --lang en|id (default: REPOLENS_LANG or en) and --debug.
 """
@@ -22,7 +24,7 @@ import time
 from contextlib import ExitStack
 from pathlib import Path
 
-from repolens import __version__, ai, auth, coverage, credentials, diff, document, projectconfig, ui
+from repolens import __version__, ai, auth, completion, coverage, credentials, diff, document, projectconfig, selfupdate, ui
 from repolens.i18n import LANGUAGES, get_lang, label, set_lang, t
 from repolens.render import docx_out, markdown, pdf_out
 from repolens.scanner import is_git_url, prepared_source, scan
@@ -99,12 +101,25 @@ def _check_output(facts: dict, out_dir: Path, force: bool) -> str | None:
         return None
     old_id, new_id = _identity(previous), _identity(facts)
     if old_id and new_id and old_id != new_id:
-        name, release = facts["project"]["name"], document.release_label(facts)
+        project = facts["project"]
+        name, release = project["name"], document.release_label(facts)
+        origin = t(f"from {project['name_source']}", f"dari {project['name_source']}")
+        unique = _slug(project.get("folder") or "") or "my-app"
         raise RuntimeError(t(
-            f"{out_dir} already holds documents of another project ({old_id}) with the same name and release ({name} {release}).\n"
-            "Set `name` in .repolens.yml of one of the projects, use another --out, or add --force to overwrite.",
-            f"{out_dir} sudah berisi dokumen proyek lain ({old_id}), dengan nama dan rilis yang sama ({name} {release}).\n"
-            "Isi `name` di .repolens.yml salah satu proyek, pakai --out lain, atau tambahkan --force untuk menimpa."))
+            f"Two different projects are both called {name} {release} ({origin}), so their documents would overwrite each other.\n"
+            f"  already in {_display_path(out_dir)}:  {old_id}\n"
+            f"  scanned now:  {new_id}\n"
+            "Fix it with one of:\n"
+            f"  → give this project its own name: add `name: {unique}` to its .repolens.yml\n"
+            f"  → write somewhere else:  --out {_display_path(out_dir.parent / unique)}\n"
+            "  → overwrite anyway:  --force",
+            f"Dua proyek berbeda sama-sama bernama {name} {release} ({origin}), jadi dokumennya akan saling menimpa.\n"
+            f"  sudah ada di {_display_path(out_dir)}:  {old_id}\n"
+            f"  yang dipindai sekarang:  {new_id}\n"
+            "Perbaiki dengan salah satu:\n"
+            f"  → beri nama sendiri untuk proyek ini: tambahkan `name: {unique}` di .repolens.yml-nya\n"
+            f"  → tulis ke folder lain:  --out {_display_path(out_dir.parent / unique)}\n"
+            "  → tetap timpa:  --force"))
     old_commit, new_commit = (previous.get("git") or {}).get("commit_short"), (facts.get("git") or {}).get("commit_short")
     if old_commit and new_commit and old_commit != new_commit:
         return t(f"Replaced the previous result (commit {old_commit} → {new_commit})",
@@ -158,6 +173,8 @@ def _print_brief_coverage(checks: list[dict], source: str) -> None:
 # ---- scan -------------------------------------------------------------------
 
 def _check_source_options(args) -> None:
+    if not is_git_url(args.source) and not Path(args.source).expanduser().is_dir():
+        raise FileNotFoundError(t("Folder not found: ", "Folder tidak ditemukan: ") + args.source)
     if getattr(args, "no_git", False):
         if is_git_url(args.source):
             raise RuntimeError(t("--no-git only works with a local folder; a git URL has to be cloned with git.",
@@ -463,6 +480,15 @@ def cmd_auth(args) -> int:
     return auth.status(as_json=args.json, verify=not args.offline)
 
 
+def cmd_update(args) -> int:
+    return selfupdate.run(check_only=args.check)
+
+
+def cmd_completion(args) -> int:
+    sys.stdout.write(completion.script(args.shell, build_parser()))
+    return 0
+
+
 # ---- parser & entry point ---------------------------------------------------
 
 def build_parser() -> argparse.ArgumentParser:
@@ -543,6 +569,14 @@ def build_parser() -> argparse.ArgumentParser:
     status.add_argument("--json", action="store_true", help=t("Print a JSON result", "Cetak hasil JSON"))
     actions.add_parser("logout", parents=[common], help=t("Remove the saved key", "Hapus key yang disimpan"))
     a.set_defaults(func=cmd_auth, action="status", offline=False, json=False)
+
+    u = sub.add_parser("update", parents=[common], help=t("Install the newest RepoLens release", "Pasang rilis RepoLens terbaru"))
+    u.add_argument("--check", action="store_true", help=t("Only report whether a newer release exists", "Hanya cek apakah ada rilis yang lebih baru"))
+    u.set_defaults(func=cmd_update)
+
+    c = sub.add_parser("completion", parents=[common], help=t("Print a shell completion script", "Cetak script tab-completion untuk shell"))
+    c.add_argument("shell", choices=completion.SHELLS)
+    c.set_defaults(func=cmd_completion)
     return parser
 
 
