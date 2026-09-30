@@ -27,10 +27,17 @@ def _join(d: str, name: str) -> str:
 
 
 def _dep(name, declared=None, resolved=None, scope="runtime", source=None):
-    return {"name": name, "declared": declared, "resolved": resolved, "scope": scope, "source": source}
+    return {
+        "name": name,
+        "declared": declared,
+        "resolved": resolved,
+        "scope": scope,
+        "source": source,
+    }
 
 
 # ---- Dart / Flutter ---------------------------------------------------------
+
 
 def _pubspec(repo: Repo, path: str) -> dict | None:
     try:
@@ -56,13 +63,19 @@ def _pubspec(repo: Repo, path: str) -> dict | None:
                 git = spec["git"]
                 url = git.get("url") if isinstance(git, dict) else git
                 ref = git.get("ref") if isinstance(git, dict) else None
-                return None, f"git: {re.sub(r'//[^/@]+@', '//', str(url))}" + (f" @ {ref}" if ref else "")
+                return None, f"git: {re.sub(r'//[^/@]+@', '//', str(url))}" + (
+                    f" @ {ref}" if ref else ""
+                )
             if "version" in spec:
                 return str(spec["version"]), None
         return (str(spec) if spec is not None else None), None
 
     deps = []
-    for section, scope in (("dependencies", "runtime"), ("dev_dependencies", "dev"), ("dependency_overrides", "override")):
+    for section, scope in (
+        ("dependencies", "runtime"),
+        ("dev_dependencies", "dev"),
+        ("dependency_overrides", "override"),
+    ):
         for name, spec in (data.get(section) or {}).items():
             declared, src = describe(spec)
             if name == "flutter" and src and src.startswith("sdk"):
@@ -75,13 +88,16 @@ def _pubspec(repo: Repo, path: str) -> dict | None:
         "lock": lock_path if lock else None,
         "project": data.get("name"),
         "version": str(data.get("version")) if data.get("version") is not None else None,
-        "runtime": {"dart_sdk": (data.get("environment") or {}).get("sdk"),
-                    "flutter_sdk_locked": (lock.get("sdks") or {}).get("flutter")},
+        "runtime": {
+            "dart_sdk": (data.get("environment") or {}).get("sdk"),
+            "flutter_sdk_locked": (lock.get("sdks") or {}).get("flutter"),
+        },
         "dependencies": deps,
     }
 
 
 # ---- JavaScript / TypeScript ----------------------------------------------
+
 
 def _npm_resolved(repo: Repo, d: str) -> tuple[str | None, dict]:
     lock = _join(d, "package-lock.json")
@@ -93,7 +109,7 @@ def _npm_resolved(repo: Repo, d: str) -> tuple[str | None, dict]:
         resolved = {}
         for key, info in (data.get("packages") or {}).items():
             if key.startswith("node_modules/") and key.count("node_modules/") == 1:
-                resolved[key[len("node_modules/"):]] = info.get("version")
+                resolved[key[len("node_modules/") :]] = info.get("version")
         for name, info in (data.get("dependencies") or {}).items():
             resolved.setdefault(name, info.get("version"))
         return lock, resolved
@@ -139,7 +155,11 @@ def _package_json(repo: Repo, path: str) -> dict | None:
         return None
     lock, resolved = _npm_resolved(repo, _dir(path))
     deps = []
-    for section, scope in (("dependencies", "runtime"), ("devDependencies", "dev"), ("peerDependencies", "peer")):
+    for section, scope in (
+        ("dependencies", "runtime"),
+        ("devDependencies", "dev"),
+        ("peerDependencies", "peer"),
+    ):
         for name, declared in (data.get(section) or {}).items():
             deps.append(_dep(name, declared, resolved.get(name), scope))
     return {
@@ -148,14 +168,17 @@ def _package_json(repo: Repo, path: str) -> dict | None:
         "lock": lock,
         "project": data.get("name"),
         "version": data.get("version"),
-        "runtime": {"node": (data.get("engines") or {}).get("node"),
-                    "package_manager": data.get("packageManager")},
+        "runtime": {
+            "node": (data.get("engines") or {}).get("node"),
+            "package_manager": data.get("packageManager"),
+        },
         "scripts": data.get("scripts") or {},
         "dependencies": deps,
     }
 
 
 # ---- PHP --------------------------------------------------------------------
+
 
 def _composer(repo: Repo, path: str) -> dict | None:
     try:
@@ -193,6 +216,7 @@ def _composer(repo: Repo, path: str) -> dict | None:
 
 
 # ---- Java / Kotlin ----------------------------------------------------------
+
 
 def _strip_ns(tree: ET.Element) -> ET.Element:
     for el in tree.iter():
@@ -240,7 +264,9 @@ def _pom(repo: Repo, path: str) -> dict | None:
         g, a = d.findtext("groupId"), d.findtext("artifactId")
         v = resolve(d.findtext("version"))
         scope = d.findtext("scope") or "runtime"
-        note = t("version from parent/BOM", "versi dari parent/BOM") if not v and parent_info else None
+        note = (
+            t("version from parent/BOM", "versi dari parent/BOM") if not v and parent_info else None
+        )
         deps.append(_dep(f"{g}:{a}", v, v, scope, note))
     return {
         "ecosystem": "Java (Maven)",
@@ -249,8 +275,11 @@ def _pom(repo: Repo, path: str) -> dict | None:
         "project": root.findtext("artifactId"),
         "version": resolve(root.findtext("version")),
         "parent": parent_info,
-        "runtime": {"java": props.get("java.version") or props.get("maven.compiler.source")
-                    or props.get("maven.compiler.release")},
+        "runtime": {
+            "java": props.get("java.version")
+            or props.get("maven.compiler.source")
+            or props.get("maven.compiler.release")
+        },
         "dependencies": deps,
     }
 
@@ -274,9 +303,14 @@ def _gradle(repo: Repo, path: str) -> dict | None:
         deps.append(_dep(name, version, version, scope))
     plugins = [
         {"id": m.group(1), "version": m.group(2)}
-        for m in re.finditer(r"id\s*\(?\s*['\"]([\w.\-]+)['\"]\s*\)?\s*(?:version\s*['\"]([^'\"]+)['\"])?", text)
+        for m in re.finditer(
+            r"id\s*\(?\s*['\"]([\w.\-]+)['\"]\s*\)?\s*(?:version\s*['\"]([^'\"]+)['\"])?", text
+        )
     ]
-    java = re.search(r"(?:sourceCompatibility|languageVersion)\s*[=(]?\s*(?:JavaVersion\.VERSION_|JavaLanguageVersion\.of\()?['\"]?([\d._]+)", text)
+    java = re.search(
+        r"(?:sourceCompatibility|languageVersion)\s*[=(]?\s*(?:JavaVersion\.VERSION_|JavaLanguageVersion\.of\()?['\"]?([\d._]+)",
+        text,
+    )
     if not deps and not plugins:
         return None
     return {
@@ -293,20 +327,29 @@ def _gradle(repo: Repo, path: str) -> dict | None:
 
 # ---- Others -----------------------------------------------------------------
 
+
 def _go_mod(repo: Repo, path: str) -> dict:
     text = repo.read(path)
     module = re.search(r"^module\s+(\S+)", text, re.M)
     go = re.search(r"^go\s+(\S+)", text, re.M)
     deps = []
-    for block in re.findall(r"require\s*\((.*?)\)", text, re.S) + re.findall(r"^require\s+(\S+\s+\S+)", text, re.M):
+    for block in re.findall(r"require\s*\((.*?)\)", text, re.S) + re.findall(
+        r"^require\s+(\S+\s+\S+)", text, re.M
+    ):
         for line in block.splitlines():
             parts = line.split("//")[0].split()
             if len(parts) >= 2:
                 scope = "indirect" if "// indirect" in line else "runtime"
                 deps.append(_dep(parts[0], parts[1], parts[1], scope))
-    return {"ecosystem": "Go (modules)", "manifest": path, "lock": None,
-            "project": module and module.group(1), "version": None,
-            "runtime": {"go": go and go.group(1)}, "dependencies": deps}
+    return {
+        "ecosystem": "Go (modules)",
+        "manifest": path,
+        "lock": None,
+        "project": module and module.group(1),
+        "version": None,
+        "runtime": {"go": go and go.group(1)},
+        "dependencies": deps,
+    }
 
 
 def _requirements(repo: Repo, path: str) -> dict:
@@ -320,8 +363,15 @@ def _requirements(repo: Repo, path: str) -> dict:
             spec = m.group(2).strip() or None
             pinned = spec[2:] if spec and spec.startswith("==") else None
             deps.append(_dep(m.group(1), spec, pinned))
-    return {"ecosystem": "Python (pip)", "manifest": path, "lock": None, "project": None,
-            "version": None, "runtime": {}, "dependencies": deps}
+    return {
+        "ecosystem": "Python (pip)",
+        "manifest": path,
+        "lock": None,
+        "project": None,
+        "version": None,
+        "runtime": {},
+        "dependencies": deps,
+    }
 
 
 def _pyproject(repo: Repo, path: str) -> dict | None:
@@ -346,10 +396,15 @@ def _pyproject(repo: Repo, path: str) -> dict | None:
     if not deps and not project and not poetry:
         return None
     python = project.get("requires-python") or (poetry.get("dependencies") or {}).get("python")
-    return {"ecosystem": "Python (pyproject)", "manifest": path, "lock": None,
-            "project": project.get("name") or poetry.get("name"),
-            "version": project.get("version") or poetry.get("version"),
-            "runtime": {"python": python}, "dependencies": deps}
+    return {
+        "ecosystem": "Python (pyproject)",
+        "manifest": path,
+        "lock": None,
+        "project": project.get("name") or poetry.get("name"),
+        "version": project.get("version") or poetry.get("version"),
+        "runtime": {"python": python},
+        "dependencies": deps,
+    }
 
 
 def _csproj(repo: Repo, path: str) -> dict:
@@ -359,8 +414,15 @@ def _csproj(repo: Repo, path: str) -> dict:
         for m in re.finditer(r'<PackageReference\s+Include="([^"]+)"\s+Version="([^"]+)"', text)
     ]
     fw = re.search(r"<TargetFrameworks?>([^<]+)<", text)
-    return {"ecosystem": ".NET (NuGet)", "manifest": path, "lock": None, "project": None,
-            "version": None, "runtime": {"dotnet": fw and fw.group(1)}, "dependencies": deps}
+    return {
+        "ecosystem": ".NET (NuGet)",
+        "manifest": path,
+        "lock": None,
+        "project": None,
+        "version": None,
+        "runtime": {"dotnet": fw and fw.group(1)},
+        "dependencies": deps,
+    }
 
 
 def _gemfile_lock(repo: Repo, path: str) -> dict:
@@ -376,15 +438,28 @@ def _gemfile_lock(repo: Repo, path: str) -> dict:
                 deps.append(_dep(m.group(1), None, m.group(2)))
             elif line and not line.startswith(" "):
                 in_specs = False
-    return {"ecosystem": "Ruby (Bundler)", "manifest": path, "lock": path, "project": None,
-            "version": None, "runtime": {}, "dependencies": deps}
+    return {
+        "ecosystem": "Ruby (Bundler)",
+        "manifest": path,
+        "lock": path,
+        "project": None,
+        "version": None,
+        "runtime": {},
+        "dependencies": deps,
+    }
 
 
 def extract(repo: Repo) -> list[dict]:
     handlers = [
-        ("pubspec.yaml", _pubspec), ("package.json", _package_json), ("composer.json", _composer),
-        ("pom.xml", _pom), ("build.gradle", _gradle), ("build.gradle.kts", _gradle),
-        ("go.mod", _go_mod), ("requirements.txt", _requirements), ("pyproject.toml", _pyproject),
+        ("pubspec.yaml", _pubspec),
+        ("package.json", _package_json),
+        ("composer.json", _composer),
+        ("pom.xml", _pom),
+        ("build.gradle", _gradle),
+        ("build.gradle.kts", _gradle),
+        ("go.mod", _go_mod),
+        ("requirements.txt", _requirements),
+        ("pyproject.toml", _pyproject),
         ("Gemfile.lock", _gemfile_lock),
     ]
     manifests = []
@@ -392,10 +467,16 @@ def extract(repo: Repo) -> list[dict]:
         for path in repo.by_name(filename):
             # Skip platform shells generated by frameworks (e.g. Flutter's android/ gradle files
             # are reported under platforms, not as a separate dependency set).
-            if filename.startswith("build.gradle") and path.split("/")[0] in ("android", "ios") and repo.exists("pubspec.yaml"):
+            if (
+                filename.startswith("build.gradle")
+                and path.split("/")[0] in ("android", "ios")
+                and repo.exists("pubspec.yaml")
+            ):
                 continue
             result = handler(repo, path)
-            if result and (result["dependencies"] or result.get("project") or result.get("plugins")):
+            if result and (
+                result["dependencies"] or result.get("project") or result.get("plugins")
+            ):
                 manifests.append(result)
     for path in repo.by_ext(".csproj"):
         manifests.append(_csproj(repo, path))

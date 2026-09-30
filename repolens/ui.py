@@ -13,9 +13,9 @@ from __future__ import annotations
 import time
 from contextlib import contextmanager
 
+from rich.cells import cell_len
 from rich.console import Console
 from rich.markup import escape
-from rich.cells import cell_len
 
 from repolens import __version__
 
@@ -105,7 +105,9 @@ def summary(title: str, rows: list[tuple[str, str]], subtitle: str | None = None
     rule = f"[{BRAND}]" + "=" * WIDTH + "[/]"
     out.print()
     out.print(rule)
-    out.print(f"[bold]{escape(title)}[/]" + (f"  [dim]·  {escape(subtitle)}[/]" if subtitle else ""))
+    out.print(
+        f"[bold]{escape(title)}[/]" + (f"  [dim]·  {escape(subtitle)}[/]" if subtitle else "")
+    )
     width = max((len(label) for label, _ in rows), default=0)
     for label, value in rows:
         # Plain lines rather than a table: long paths wrap instead of being cut off with "…".
@@ -119,7 +121,10 @@ def table(headers: list[str], rows: list[list[str]], indent: int = 2) -> None:
     if not lines:
         return
     columns = max(len(line) for line in lines)
-    widths = [max((cell_len(line[i]) for line in lines if i < len(line)), default=0) for i in range(columns)]
+    widths = [
+        max((cell_len(line[i]) for line in lines if i < len(line)), default=0)
+        for i in range(columns)
+    ]
     for n, line in enumerate(lines):
         cells = [cell + " " * (widths[i] - cell_len(cell)) for i, cell in enumerate(line)]
         text = escape((" " * indent + "  ".join(cells)).rstrip())

@@ -47,9 +47,17 @@ repolens = "repolens.cli:main"
 include = ["repolens*"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "build>=1"]
+dev = ["pytest>=8", "build>=1", "ruff>=0.6"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = ["corpus: real repositories pinned to a commit (needs network for public repos, local clones for internal ones)"]
 addopts = "-m 'not corpus'"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+# E/W: pycodestyle, F: pyflakes, I: import order, B: likely bugs, UP: modern syntax, SIM: simpler code
+select = ["E", "W", "F", "I", "B", "UP", "SIM"]

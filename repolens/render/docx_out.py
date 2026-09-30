@@ -12,8 +12,8 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
 
-from repolens.render.inline import segments
 from repolens.i18n import t as tr  # `t` is the block type in render()
+from repolens.render.inline import segments
 
 BRAND = RGBColor(0x4D, 0x14, 0x8C)
 MUTED = RGBColor(0x62, 0x5C, 0x6E)
@@ -30,7 +30,9 @@ def _shade(cell_or_par, hex_fill: str):
     props.append(shd)
 
 
-def _add_runs(par, text: str, size: float | None = None, color: RGBColor | None = None, bold: bool = False):
+def _add_runs(
+    par, text: str, size: float | None = None, color: RGBColor | None = None, bold: bool = False
+):
     for content, style in segments(text):
         run = par.add_run(content)
         if style == "code":
@@ -110,7 +112,15 @@ def render(blocks: list[dict], path: Path) -> Path:
             toc = doc.add_paragraph()
             _field(toc, 'TOC \\o "1-2" \\h \\z \\u')
             hint = doc.add_paragraph()
-            _add_runs(hint, tr("Right-click and choose *Update Field* to refresh the table of contents.", "Klik kanan lalu pilih *Update Field* untuk memperbarui daftar isi."), size=9, color=MUTED)
+            _add_runs(
+                hint,
+                tr(
+                    "Right-click and choose *Update Field* to refresh the table of contents.",
+                    "Klik kanan lalu pilih *Update Field* untuk memperbarui daftar isi.",
+                ),
+                size=9,
+                color=MUTED,
+            )
             doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
         elif t == "h1":
             h1 += 1
@@ -127,7 +137,11 @@ def render(blocks: list[dict], path: Path) -> Path:
         elif t == "note":
             par = doc.add_paragraph()
             _shade(par, "FDF0E7" if blk.get("level") == "warn" else "EFE8F8")
-            label = tr("Warning: ", "Perhatian: ") if blk.get("level") == "warn" else tr("Note: ", "Catatan: ")
+            label = (
+                tr("Warning: ", "Perhatian: ")
+                if blk.get("level") == "warn"
+                else tr("Note: ", "Catatan: ")
+            )
             run = par.add_run(label)
             run.bold = True
             _add_runs(par, blk["text"])
@@ -156,7 +170,13 @@ def render(blocks: list[dict], path: Path) -> Path:
             for i, h in enumerate(headers):
                 cell = hdr.cells[i]
                 _shade(cell, "4D148C")
-                _add_runs(cell.paragraphs[0], h, size=font_size, color=RGBColor(0xFF, 0xFF, 0xFF), bold=True)
+                _add_runs(
+                    cell.paragraphs[0],
+                    h,
+                    size=font_size,
+                    color=RGBColor(0xFF, 0xFF, 0xFF),
+                    bold=True,
+                )
             for r_i, row in enumerate(rows):
                 cells = table.add_row().cells
                 for i, value in enumerate(row):
@@ -169,7 +189,12 @@ def render(blocks: list[dict], path: Path) -> Path:
             doc.add_paragraph()
 
     header = section.header.paragraphs[0]
-    _add_runs(header, f"{title_text} · " + tr("Technical Documentation", "Dokumentasi Teknis"), size=8, color=MUTED)
+    _add_runs(
+        header,
+        f"{title_text} · " + tr("Technical Documentation", "Dokumentasi Teknis"),
+        size=8,
+        color=MUTED,
+    )
     footer = section.footer.paragraphs[0]
     _add_runs(footer, tr("Page ", "Halaman "), size=8, color=MUTED)
     _field(footer, "PAGE")

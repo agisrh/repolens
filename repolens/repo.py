@@ -1,6 +1,7 @@
 """Read-only view of a repository on disk: file listing, safe text reads, git metadata."""
 
 from __future__ import annotations
+
 import fnmatch
 import os
 import re
@@ -12,11 +13,43 @@ from repolens.i18n import t
 
 # Directories that never hold hand-written source worth documenting.
 IGNORE_DIRS = {
-    ".git", ".hg", ".svn", "node_modules", "vendor", "build", "dist", "out", "target",
-    ".dart_tool", ".pub-cache", ".fvm", ".gradle", ".idea", ".vscode", ".next", ".nuxt",
-    ".svelte-kit", "coverage", "__pycache__", ".venv", "venv", "env", ".tox", "Pods",
-    ".symlinks", "obj", ".terraform", ".cache", ".turbo", ".expo", "DerivedData",
-    ".ruby-lsp", ".kotlin", ".plugin_symlinks", "ephemeral", "xcuserdata",
+    ".git",
+    ".hg",
+    ".svn",
+    "node_modules",
+    "vendor",
+    "build",
+    "dist",
+    "out",
+    "target",
+    ".dart_tool",
+    ".pub-cache",
+    ".fvm",
+    ".gradle",
+    ".idea",
+    ".vscode",
+    ".next",
+    ".nuxt",
+    ".svelte-kit",
+    "coverage",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "env",
+    ".tox",
+    "Pods",
+    ".symlinks",
+    "obj",
+    ".terraform",
+    ".cache",
+    ".turbo",
+    ".expo",
+    "DerivedData",
+    ".ruby-lsp",
+    ".kotlin",
+    ".plugin_symlinks",
+    "ephemeral",
+    "xcuserdata",
 }
 
 MAX_READ_BYTES = 1_500_000
@@ -26,7 +59,9 @@ class Repo:
     def __init__(self, root: str | Path, ignore: list[str] = (), use_git: bool = True):
         self.root = Path(root).resolve()
         if not self.root.is_dir():
-            raise FileNotFoundError(t("Folder not found: ", "Folder tidak ditemukan: ") + str(self.root))
+            raise FileNotFoundError(
+                t("Folder not found: ", "Folder tidak ditemukan: ") + str(self.root)
+            )
         # use_git=False: read the folder as plain files on disk (no .gitignore, no git metadata).
         self.use_git = use_git
         # Extra glob patterns to exclude (from .repolens.yml `ignore`). A bare folder name matches the whole folder.
@@ -55,7 +90,9 @@ class Repo:
                 return sorted(keep)
         result: list[str] = []
         for dirpath, dirnames, filenames in os.walk(self.root):
-            dirnames[:] = sorted(d for d in dirnames if d not in IGNORE_DIRS and not d.endswith(".egg-info"))
+            dirnames[:] = sorted(
+                d for d in dirnames if d not in IGNORE_DIRS and not d.endswith(".egg-info")
+            )
             rel_dir = Path(dirpath).relative_to(self.root)
             for name in sorted(filenames):
                 rel = (rel_dir / name).as_posix()
@@ -94,8 +131,14 @@ class Repo:
     def git(self, *args: str) -> str:
         try:
             out = subprocess.run(
-                ["git", *args], cwd=self.root, capture_output=True, text=True, encoding="utf-8", errors="replace",
-                timeout=60, env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+                ["git", *args],
+                cwd=self.root,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=60,
+                env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
             )
         except (OSError, subprocess.TimeoutExpired):
             return ""
@@ -120,4 +163,3 @@ def line_of(text: str, index: int) -> int:
 def strip_credentials(url: str) -> str:
     """Remove user:token@ from remote URLs so tokens never reach the document."""
     return re.sub(r"(//)[^/@\s]+@", r"\1", url)
-

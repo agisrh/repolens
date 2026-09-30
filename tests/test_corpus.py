@@ -20,7 +20,9 @@ def _git(*args, cwd=None):
 
 def _checkout_public(entry) -> Path:
     target = CACHE / entry["name"]
-    head = _git("rev-parse", "HEAD", cwd=target).stdout.strip() if (target / ".git").exists() else ""
+    head = (
+        _git("rev-parse", "HEAD", cwd=target).stdout.strip() if (target / ".git").exists() else ""
+    )
     if head != entry["commit"]:
         target.mkdir(parents=True, exist_ok=True)
         _git("init", "-q", cwd=target)
@@ -29,7 +31,9 @@ def _checkout_public(entry) -> Path:
         fetched = _git("fetch", "-q", "--depth", "1", "origin", entry["commit"], cwd=target)
         if fetched.returncode != 0:
             pytest.skip(f"tidak bisa mengambil {entry['url']}: {fetched.stderr.strip()}")
-        _git("-c", "advice.detachedHead=false", "checkout", "-q", "--force", "FETCH_HEAD", cwd=target)
+        _git(
+            "-c", "advice.detachedHead=false", "checkout", "-q", "--force", "FETCH_HEAD", cwd=target
+        )
     return target
 
 
@@ -41,8 +45,12 @@ def _verify(facts: dict, expect: dict):
             assert fws[name] == str(version), f"{name}: versi {fws[name]!r}, diharapkan {version!r}"
 
     eps = facts["endpoints"]
-    counts = {"server": len(eps["server"]), "client": len(eps["client"]), "pages": len(eps["pages"]),
-              "tables": len(facts["database"]["tables"])}
+    counts = {
+        "server": len(eps["server"]),
+        "client": len(eps["client"]),
+        "pages": len(eps["pages"]),
+        "tables": len(facts["database"]["tables"]),
+    }
     for key, minimum in (expect.get("min") or {}).items():
         assert counts[key] >= minimum, f"{key}: {counts[key]} < minimum {minimum}"
 
@@ -65,7 +73,11 @@ def _verify(facts: dict, expect: dict):
 @pytest.mark.parametrize("entry", CORPUS.get("public", []), ids=lambda e: e["name"])
 def test_public_repo(entry):
     root = _checkout_public(entry)
-    facts = scan(root, {"type": "local", "location": entry["url"], "ref": entry["commit"]}, log=lambda *_: None)
+    facts = scan(
+        root,
+        {"type": "local", "location": entry["url"], "ref": entry["commit"]},
+        log=lambda *_: None,
+    )
     _verify(facts, entry["expect"])
 
 

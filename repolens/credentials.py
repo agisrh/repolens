@@ -52,7 +52,11 @@ def _keyring():
         backend = keyring.get_keyring()
     except Exception:
         return None
-    if isinstance(backend, fail.Keyring) or "null" in type(backend).__module__ or backend.priority < 1:
+    if (
+        isinstance(backend, fail.Keyring)
+        or "null" in type(backend).__module__
+        or backend.priority < 1
+    ):
         return None
     return keyring
 
@@ -75,6 +79,7 @@ def _write_private(path: Path, data: dict) -> None:
 
 
 # ---- API key ----------------------------------------------------------------
+
 
 def stored_key() -> tuple[str | None, str | None]:
     """(key, "keychain" | "file") saved by `repolens auth login`, or (None, None)."""
@@ -99,7 +104,9 @@ def save_key(key: str) -> str:
         except Exception:
             pass
         else:
-            _credentials_file().unlink(missing_ok=True)  # do not leave an older plain-text copy behind
+            _credentials_file().unlink(
+                missing_ok=True
+            )  # do not leave an older plain-text copy behind
             return "keychain"
     _write_private(_credentials_file(), {"anthropic_api_key": key})
     return "file"
@@ -150,7 +157,10 @@ def anthropic_client(api_key: str | None = None):
 
 def has_profile() -> bool:
     """Best guess that an `ant auth login` profile exists (the SDK reads it without any env var)."""
-    return bool(os.environ.get("ANTHROPIC_PROFILE")) or (Path.home() / ".config" / "anthropic").is_dir()
+    return (
+        bool(os.environ.get("ANTHROPIC_PROFILE"))
+        or (Path.home() / ".config" / "anthropic").is_dir()
+    )
 
 
 def available() -> bool:
@@ -166,6 +176,7 @@ def mask(key: str) -> str:
 
 
 # ---- settings -----------------------------------------------------------------
+
 
 def load_settings() -> dict:
     return _read_json(_settings_file())

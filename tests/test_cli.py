@@ -22,10 +22,20 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def git(cwd: Path, *args: str):
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True,
-                   env={"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
-                        "GIT_COMMITTER_EMAIL": "t@t", "PATH": "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin",
-                        "HOME": str(cwd)})
+    subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        check=True,
+        capture_output=True,
+        env={
+            "GIT_AUTHOR_NAME": "t",
+            "GIT_AUTHOR_EMAIL": "t@t",
+            "GIT_COMMITTER_NAME": "t",
+            "GIT_COMMITTER_EMAIL": "t@t",
+            "PATH": "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin",
+            "HOME": str(cwd),
+        },
+    )
 
 
 def make_repo(tmp_path: Path, fixture: str, name: str, remote: str | None = None) -> Path:
@@ -46,6 +56,7 @@ def scan_args(source, out, *extra):
 
 # ---- input validation -------------------------------------------------------
 
+
 def test_export_rejects_invalid_json(tmp_path, capsys):
     bad = tmp_path / "bad.json"
     bad.write_text("{bad")
@@ -61,7 +72,14 @@ def test_export_rejects_json_that_is_not_a_scan(tmp_path, capsys):
 
 
 def test_missing_compare_file_fails_before_scanning(tmp_path, capsys):
-    assert main(scan_args(FIXTURES / "laravel_groups", tmp_path, "--compare", str(tmp_path / "none.json"))) == 1
+    assert (
+        main(
+            scan_args(
+                FIXTURES / "laravel_groups", tmp_path, "--compare", str(tmp_path / "none.json")
+            )
+        )
+        == 1
+    )
     captured = capsys.readouterr()
     assert "File not found" in captured.err
     assert "Reading" not in captured.out
@@ -69,7 +87,11 @@ def test_missing_compare_file_fails_before_scanning(tmp_path, capsys):
 
 def test_compare_and_compare_ref_are_exclusive(tmp_path):
     with pytest.raises(SystemExit) as exc:
-        main(scan_args(FIXTURES / "laravel_groups", tmp_path, "--compare", "a.json", "--compare-ref", "v1"))
+        main(
+            scan_args(
+                FIXTURES / "laravel_groups", tmp_path, "--compare", "a.json", "--compare-ref", "v1"
+            )
+        )
     assert exc.value.code == 2
 
 
@@ -94,10 +116,12 @@ def test_init_respects_existing_repolens_yaml(tmp_path, capsys):
 
 # ---- .repolens.yml robustness -------------------------------------------------
 
+
 def test_malformed_config_is_reported_not_crashing(tmp_path):
     (tmp_path / ".repolens.yml").write_text(
         "version: 1.10\nignore: [123, {a: b}]\nroutes: [/etc/hosts, ../../x.php]\n"
-        "frameworks: Laravel\nendpoints: {method: GET}\ntree_depth: true\nname: ''\n")
+        "frameworks: Laravel\nendpoints: {method: GET}\ntree_depth: true\nname: ''\n"
+    )
     cfg = projectconfig.load(tmp_path)
     text = "\n".join(cfg["warnings"])
     assert "as a number" in text
@@ -120,6 +144,7 @@ def test_glob_outside_project_is_ignored(tmp_path):
 
 # ---- output safety ----------------------------------------------------------
 
+
 def test_different_project_with_same_name_and_release_is_not_overwritten(tmp_path, capsys):
     a = make_repo(tmp_path, "flutter_client", "app_a", "git@github.com:org/app-a.git")
     b = make_repo(tmp_path, "flutter_client", "app_b", "git@github.com:org/app-b.git")
@@ -127,7 +152,11 @@ def test_different_project_with_same_name_and_release_is_not_overwritten(tmp_pat
     assert main(scan_args(a, out)) == 0
     assert main(scan_args(b, out)) == 1
     err = capsys.readouterr().err
-    assert "Two different projects" in err and "git@github.com:org/app-a" in err and "git@github.com:org/app-b" in err
+    assert (
+        "Two different projects" in err
+        and "git@github.com:org/app-a" in err
+        and "git@github.com:org/app-b" in err
+    )
     assert "`name: app_b`" in err and "--force" in err
     scanned = next(out.glob("*/scan.json"))
     assert json.loads(scanned.read_text())["git"]["remote"] == "git@github.com:org/app-a.git"
@@ -149,6 +178,7 @@ def test_strict_scan_fails_on_warnings(tmp_path):
 
 # ---- git sources ------------------------------------------------------------
 
+
 def test_local_ref_scan_reports_real_remote_and_no_fake_branch(tmp_path):
     repo = make_repo(tmp_path, "laravel_groups", "api", "https://github.com/org/api.git")
     out = tmp_path / "out"
@@ -161,7 +191,15 @@ def test_local_ref_scan_reports_real_remote_and_no_fake_branch(tmp_path):
 
 def test_git_errors_never_show_credentials():
     with pytest.raises(RuntimeError) as exc:
-        _run(["git", "clone", "--quiet", "https://user:s3cr3t-token@127.0.0.1:9/none.git", "/nonexistent/x"])
+        _run(
+            [
+                "git",
+                "clone",
+                "--quiet",
+                "https://user:s3cr3t-token@127.0.0.1:9/none.git",
+                "/nonexistent/x",
+            ]
+        )
     assert "s3cr3t-token" not in str(exc.value)
 
 
@@ -177,13 +215,16 @@ def test_tracked_files_handles_non_ascii_names(tmp_path):
 
 # ---- security severity ------------------------------------------------------
 
+
 def test_secret_severity_is_lower_in_tests_and_firebase_client_config(tmp_path):
     (tmp_path / "lib").mkdir()
     (tmp_path / "test").mkdir()
     (tmp_path / "android").mkdir()
     (tmp_path / "lib" / "auth.dart").write_text('const password = "RealPass2024";\n')
     (tmp_path / "test" / "auth_test.dart").write_text('final password = "TestPass2024";\n')
-    (tmp_path / "android" / "google-services.json").write_text('{"current_key": "AIzaSyA1234567890abcdefghijklmnopqrstuv"}\n')
+    (tmp_path / "android" / "google-services.json").write_text(
+        '{"current_key": "AIzaSyA1234567890abcdefghijklmnopqrstuv"}\n'
+    )
     found = {s["file"]: s for s in config.secrets(Repo(tmp_path))}
     assert found["lib/auth.dart"]["severity"] == "medium"
     assert found["test/auth_test.dart"]["severity"] == "low"
@@ -192,6 +233,7 @@ def test_secret_severity_is_lower_in_tests_and_firebase_client_config(tmp_path):
 
 
 # ---- plain folder (--no-git), dry run, json -------------------------------
+
 
 def test_no_git_reads_every_file_on_disk_without_git_info(tmp_path):
     repo = make_repo(tmp_path, "laravel_groups", "api", "https://github.com/org/api.git")
@@ -247,6 +289,7 @@ def test_export_keeps_scan_language_by_default(tmp_path):
 
 # ---- names from before the rename to repolens -------------------------------
 
+
 def test_legacy_docgen_yml_is_still_read(tmp_path):
     (tmp_path / ".docgen.yml").write_text("name: legacy-app\n")
     cfg = projectconfig.load(tmp_path)
@@ -257,7 +300,10 @@ def test_legacy_scan_json_is_accepted(tmp_path, capsys):
     project = tmp_path / "p"
     project.mkdir()
     (project / "main.py").write_text("print('hi')\n")
-    assert main(["scan", str(project), "--no-ai", "--format", "md", "--out", str(tmp_path / "out")]) == 0
+    assert (
+        main(["scan", str(project), "--no-ai", "--format", "md", "--out", str(tmp_path / "out")])
+        == 0
+    )
     scan_json = next((tmp_path / "out").glob("*/scan.json"))
     facts = json.loads(scan_json.read_text())
     facts["docgen_version"] = facts.pop("repolens_version")

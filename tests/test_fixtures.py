@@ -41,6 +41,7 @@ def warnings(facts):
 
 # ---- CodeIgniter 4 without vendor/ (web-portal variant) --------------------
 
+
 def test_ci4_skeleton_composer_name_is_not_used_as_project_name():
     f = run("ci4_no_vendor")
     assert f["project"]["name"] == "ci4_no_vendor"
@@ -50,7 +51,10 @@ def test_ci4_detected_from_layout_without_vendor():
     f = run("ci4_no_vendor")
     ci = next(x for x in f["frameworks"] if x["name"] == "CodeIgniter 4")
     assert ci["version"] is None
-    assert any("CodeIgniter 4 version unknown" in w["message"] and "composer install" in w["hint"] for w in warnings(f))
+    assert any(
+        "CodeIgniter 4 version unknown" in w["message"] and "composer install" in w["hint"]
+        for w in warnings(f)
+    )
 
 
 def test_ci4_routes_groups_and_resource():
@@ -74,7 +78,9 @@ def test_ci4_unrouted_controller_is_flagged():
 
 def test_model_tables_resolve_aliases_and_joins():
     f = run("ci4_no_vendor")
-    assert {"id_berita", "status_berita", "tanggal_publish", "id_kategori", "id_user"} <= columns(f, "cp_berita")
+    assert {"id_berita", "status_berita", "tanggal_publish", "id_kategori", "id_user"} <= columns(
+        f, "cp_berita"
+    )
     assert "nama_kategori" not in columns(f, "cp_berita")
     assert {"nama_kategori", "id_kategori"} <= columns(f, "kategori")
     assert {"nama", "id_user"} <= columns(f, "users")
@@ -92,6 +98,7 @@ def test_inferred_only_schema_is_flagged():
 
 
 # ---- .repolens.yml ------------------------------------------------------------
+
 
 def test_config_overrides_metadata_and_framework_version():
     f = run("ci4_with_config")
@@ -129,6 +136,7 @@ def test_config_unknown_key_and_notes():
 
 # ---- Laravel ----------------------------------------------------------------
 
+
 def test_laravel_prefix_group_and_api_resource():
     f = run("laravel_groups")
     eps = endpoints(f)
@@ -151,11 +159,17 @@ def test_laravel_migration_columns():
 
 # ---- Spring -----------------------------------------------------------------
 
+
 def test_spring_class_prefix_and_request_mapping_methods():
     f = run("spring_basic")
     eps = endpoints(f)
-    assert {("GET", "/api/shipments"), ("GET", "/api/shipments/{awb}"), ("POST", "/api/shipments/{awb}/cancel"),
-            ("PUT", "/api/shipments/sync"), ("PATCH", "/api/shipments/sync")} <= eps
+    assert {
+        ("GET", "/api/shipments"),
+        ("GET", "/api/shipments/{awb}"),
+        ("POST", "/api/shipments/{awb}/cancel"),
+        ("PUT", "/api/shipments/sync"),
+        ("PATCH", "/api/shipments/sync"),
+    } <= eps
     fw = {x["name"]: x["version"] for x in f["frameworks"]}
     assert fw["Spring Boot"] == "3.3.2" and fw["Java"] == "21"
     assert f["project"]["name"] == "shipment-api" and f["project"]["version"] == "1.4.0"
@@ -172,6 +186,7 @@ def test_spring_entities_ignore_javadoc_and_transient():
 
 # ---- Flutter ----------------------------------------------------------------
 
+
 def test_flutter_client_paths_resolve_variables_and_interpolation():
     f = run("flutter_client")
     eps = endpoints(f, "client")
@@ -185,6 +200,7 @@ def test_flutter_client_paths_resolve_variables_and_interpolation():
 
 # ---- Next.js ----------------------------------------------------------------
 
+
 def test_next_app_router_groups_and_drizzle():
     f = run("next_app_router")
     assert {("GET", "/api/shipments"), ("POST", "/api/shipments")} <= endpoints(f)
@@ -195,6 +211,7 @@ def test_next_app_router_groups_and_drizzle():
 
 # ---- Unknown stack ----------------------------------------------------------
 
+
 def test_unknown_stack_is_flagged_not_silently_empty():
     f = run("unknown_stack")
     assert any("Main framework not recognised" in w["message"] for w in warnings(f))
@@ -202,10 +219,15 @@ def test_unknown_stack_is_flagged_not_silently_empty():
 
 # ---- Rendering --------------------------------------------------------------
 
+
 @pytest.mark.parametrize("name", ["ci4_with_config", "spring_basic", "unknown_stack"])
 def test_all_formats_render(tmp_path, name):
     blocks = document.build(run(name))
-    for render, ext in ((markdown.render, ".md"), (docx_out.render, ".docx"), (pdf_out.render, ".pdf")):
+    for render, ext in (
+        (markdown.render, ".md"),
+        (docx_out.render, ".docx"),
+        (pdf_out.render, ".pdf"),
+    ):
         out = render(blocks, tmp_path / f"doc{ext}")
         assert out.stat().st_size > 1000
     md = (tmp_path / "doc.md").read_text()
@@ -225,8 +247,16 @@ def test_indonesian_output_and_legacy_values(tmp_path):
     try:
         facts = run("ci4_no_vendor")
         assert any("tidak diketahui" in w["message"] for w in warnings(facts))
-        facts["security"]["secrets"] = [{"type": "File env ikut di-commit", "severity": "tinggi", "file": ".env", "line": 1,
-                                         "preview": "3 key", "committed": True}]
+        facts["security"]["secrets"] = [
+            {
+                "type": "File env ikut di-commit",
+                "severity": "tinggi",
+                "file": ".env",
+                "line": 1,
+                "preview": "3 key",
+                "committed": True,
+            }
+        ]
         md = markdown.render(document.build(facts), tmp_path / "id.md").read_text()
         assert "Cakupan Pemindaian" in md and "Daftar Isi" in md
         assert "| tinggi | File env ikut di-commit |" in md

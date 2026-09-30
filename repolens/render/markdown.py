@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+
 from repolens.i18n import t as tr  # `t` is the block type in render()
 
 
@@ -47,7 +48,9 @@ def render(blocks: list[dict], path: Path) -> Path:
         elif t == "code":
             lines += ["```text", blk["text"], "```", ""]
         elif t == "note":
-            label = tr("Warning", "Perhatian") if blk.get("level") == "warn" else tr("Note", "Catatan")
+            label = (
+                tr("Warning", "Perhatian") if blk.get("level") == "warn" else tr("Note", "Catatan")
+            )
             lines += [f"> **{label}:** {blk['text']}", ""]
     path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
     return path

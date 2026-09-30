@@ -18,12 +18,15 @@ KEY = "sk-ant-api03-abcdefghijklmnop-WXYZ"
 @pytest.fixture
 def api(monkeypatch):
     """Stand-in for ai.check: records calls and answers with `api.result`."""
+
     class Api:
         result = ("ok", "Claude Opus 5.5")
         calls: list = []
+
     def check(model, api_key=None):
         Api.calls.append((model, api_key))
         return Api.result
+
     monkeypatch.setattr(ai, "check", check)
     return Api
 
@@ -36,10 +39,13 @@ def login(monkeypatch, *args, key=KEY):
 class FakeKeyring:
     def __init__(self):
         self.store = {}
+
     def get_password(self, service, account):
         return self.store.get((service, account))
+
     def set_password(self, service, account, value):
         self.store[(service, account)] = value
+
     def delete_password(self, service, account):
         del self.store[(service, account)]
 
@@ -107,8 +113,14 @@ def test_status_and_logout(monkeypatch, api, capsys):
     capsys.readouterr()
     assert main(["auth", "status", "--json"]) == 0
     result = json.loads(capsys.readouterr().out)
-    assert result == {"configured": True, "source": "file", "key": "sk-ant-…WXYZ", "model": ai.DEFAULT_MODEL,
-                      "model_source": "default", "check": "ok"}
+    assert result == {
+        "configured": True,
+        "source": "file",
+        "key": "sk-ant-…WXYZ",
+        "model": ai.DEFAULT_MODEL,
+        "model_source": "default",
+        "check": "ok",
+    }
     assert KEY not in json.dumps(result)
     api.result = ("invalid", "rejected")
     assert main(["auth", "status"]) == 1

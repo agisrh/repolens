@@ -12,12 +12,24 @@ from repolens.repo import Repo
 
 # (display name, category, ecosystem prefix, dependency names that identify it)
 FRAMEWORK_RULES = [
-    ("Spring Boot", "Backend framework", "Java", ["org.springframework.boot:spring-boot-starter",
-                                                  "org.springframework.boot:spring-boot-starter-web",
-                                                  "org.springframework.boot:spring-boot-starter-webflux"]),
+    (
+        "Spring Boot",
+        "Backend framework",
+        "Java",
+        [
+            "org.springframework.boot:spring-boot-starter",
+            "org.springframework.boot:spring-boot-starter-web",
+            "org.springframework.boot:spring-boot-starter-webflux",
+        ],
+    ),
     ("Laravel", "Backend framework", "PHP", ["laravel/framework"]),
     ("Lumen", "Backend framework", "PHP", ["laravel/lumen-framework"]),
-    ("CodeIgniter 4", "Backend framework", "PHP", ["codeigniter4/framework", "codeigniter4/codeigniter4"]),
+    (
+        "CodeIgniter 4",
+        "Backend framework",
+        "PHP",
+        ["codeigniter4/framework", "codeigniter4/codeigniter4"],
+    ),
     ("Symfony", "Backend framework", "PHP", ["symfony/framework-bundle"]),
     ("Next.js", "Fullstack framework", "Node", ["next"]),
     ("Nuxt", "Fullstack framework", "Node", ["nuxt"]),
@@ -59,7 +71,12 @@ FRAMEWORK_RULES = [
     ("Firebase", "Backend service", "Dart", ["firebase_core"]),
     ("Firebase", "Backend service", "Node", ["firebase", "firebase-admin"]),
     ("Spring Data JPA", "ORM", "Java", ["org.springframework.boot:spring-boot-starter-data-jpa"]),
-    ("Spring Security", "Security", "Java", ["org.springframework.boot:spring-boot-starter-security"]),
+    (
+        "Spring Security",
+        "Security",
+        "Java",
+        ["org.springframework.boot:spring-boot-starter-security"],
+    ),
     ("Lombok", "Library", "Java", ["org.projectlombok:lombok"]),
     ("Laravel Sanctum", "Auth", "PHP", ["laravel/sanctum"]),
     ("Laravel Passport", "Auth", "PHP", ["laravel/passport"]),
@@ -90,10 +107,20 @@ def frameworks(repo: Repo, manifests: list[dict]) -> list[dict]:
                     break
         parent = m.get("parent") or {}
         if parent.get("artifact") == "spring-boot-starter-parent":
-            add("Spring Boot", "Backend framework", parent.get("version"), m["manifest"] + " (parent)")
+            add(
+                "Spring Boot",
+                "Backend framework",
+                parent.get("version"),
+                m["manifest"] + " (parent)",
+            )
         for plugin in m.get("plugins") or []:
             if plugin["id"] == "org.springframework.boot":
-                add("Spring Boot", "Backend framework", plugin.get("version"), m["manifest"] + " (plugin)")
+                add(
+                    "Spring Boot",
+                    "Backend framework",
+                    plugin.get("version"),
+                    m["manifest"] + " (plugin)",
+                )
         runtime = m.get("runtime") or {}
         if eco.startswith("Dart"):
             is_flutter = "flutter" in repo.read(m["manifest"])
@@ -106,8 +133,12 @@ def frameworks(repo: Repo, manifests: list[dict]) -> list[dict]:
                     except (OSError, json.JSONDecodeError):
                         pass
             if is_flutter:
-                add("Flutter", "Mobile framework", flutter_version or runtime.get("flutter_sdk_locked"),
-                    ".fvmrc" if flutter_version else m["manifest"])
+                add(
+                    "Flutter",
+                    "Mobile framework",
+                    flutter_version or runtime.get("flutter_sdk_locked"),
+                    ".fvmrc" if flutter_version else m["manifest"],
+                )
             add("Dart SDK", "Language", runtime.get("dart_sdk"), m["manifest"])
         if runtime.get("php"):
             add("PHP", "Language", runtime["php"], m["manifest"])
@@ -128,17 +159,30 @@ def frameworks(repo: Repo, manifests: list[dict]) -> list[dict]:
         v = re.search(r"CI_VERSION\s*=\s*'([^']+)'", repo.read(path))
         add("CodeIgniter 4", "Backend framework", v and v.group(1), path)
     # CodeIgniter 4 app without vendor/ checked in: detect from its layout, read the version if vendor exists on disk.
-    if "CodeIgniter 4" not in found and repo.exists("spark") and repo.exists("app/Config/Routes.php"):
+    if (
+        "CodeIgniter 4" not in found
+        and repo.exists("spark")
+        and repo.exists("app/Config/Routes.php")
+    ):
         version, source = None, "spark + app/Config/Routes.php"
         core = repo.root / "vendor/codeigniter4/framework/system/CodeIgniter.php"
         if core.exists():
             v = re.search(r"CI_VERSION\s*=\s*'([^']+)'", core.read_text(errors="ignore"))
             version, source = (v.group(1) if v else None), "vendor/codeigniter4/framework"
         else:
-            source += t(" (exact version unknown: no vendor/ folder)", " (versi pasti tidak diketahui: vendor/ tidak ada)")
+            source += t(
+                " (exact version unknown: no vendor/ folder)",
+                " (versi pasti tidak diketahui: vendor/ tidak ada)",
+            )
         add("CodeIgniter 4", "Backend framework", version, source)
     if "CodeIgniter 3" not in found and repo.exists("application/config/routes.php"):
-        add("CodeIgniter 3", "Backend framework", None, "application/config/routes.php" + t(" (no system/ folder)", " (folder system/ tidak ada)"))
+        add(
+            "CodeIgniter 3",
+            "Backend framework",
+            None,
+            "application/config/routes.php"
+            + t(" (no system/ folder)", " (folder system/ tidak ada)"),
+        )
     if "Laravel" not in found and repo.exists("artisan") and repo.exists("routes/web.php"):
         add("Laravel", "Backend framework", None, "artisan + routes/web.php")
     if repo.exists(".nvmrc"):
@@ -164,7 +208,7 @@ def mobile_platforms(repo: Repo) -> dict:
                 while i < len(text) and depth:
                     if text[i] == "{":
                         if depth == 1:
-                            head = text[text.rfind("\n", 0, i) + 1:i]
+                            head = text[text.rfind("\n", 0, i) + 1 : i]
                             n = re.search(r"(?:create\(\")?(\w+)\"?\)?\s*$", head)
                             if n:
                                 names.append(n.group(1))
@@ -185,8 +229,17 @@ def mobile_platforms(repo: Repo) -> dict:
     pbx = "ios/Runner.xcodeproj/project.pbxproj"
     if repo.exists(pbx):
         text = repo.read(pbx)
-        targets = sorted(set(re.findall(r"IPHONEOS_DEPLOYMENT_TARGET = ([\d.]+);", text)), key=lambda v: [int(x) for x in v.split(".")])
-        bundles = sorted(set(b for b in re.findall(r"PRODUCT_BUNDLE_IDENTIFIER = ([^;]+);", text) if "Tests" not in b))
+        targets = sorted(
+            set(re.findall(r"IPHONEOS_DEPLOYMENT_TARGET = ([\d.]+);", text)),
+            key=lambda v: [int(x) for x in v.split(".")],
+        )
+        bundles = sorted(
+            set(
+                b
+                for b in re.findall(r"PRODUCT_BUNDLE_IDENTIFIER = ([^;]+);", text)
+                if "Tests" not in b
+            )
+        )
         podfile = re.search(r"platform\s*:ios,\s*'([\d.]+)'", repo.read("ios/Podfile"))
         result["ios"] = {
             "file": pbx,
@@ -206,15 +259,23 @@ def infrastructure(repo: Repo) -> dict:
         images = re.findall(r"^FROM\s+(\S+)", repo.read(path), re.M | re.I)
         dockerfiles.append({"file": path, "base_images": images})
     compose = []
-    for path in repo.by_name("docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"):
+    for path in repo.by_name(
+        "docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"
+    ):
         try:
             data = yaml.safe_load(repo.read(path)) or {}
         except yaml.YAMLError:
             continue
         for name, svc in (data.get("services") or {}).items():
             svc = svc or {}
-            compose.append({"file": path, "service": name, "image": svc.get("image") or ("build" if svc.get("build") else None),
-                            "ports": [str(p) for p in svc.get("ports") or []]})
+            compose.append(
+                {
+                    "file": path,
+                    "service": name,
+                    "image": svc.get("image") or ("build" if svc.get("build") else None),
+                    "ports": [str(p) for p in svc.get("ports") or []],
+                }
+            )
     ci = []
     for path in repo.glob(".github/workflows/*.yml", ".github/workflows/*.yaml"):
         try:
@@ -222,10 +283,27 @@ def infrastructure(repo: Repo) -> dict:
         except yaml.YAMLError:
             data = {}
         triggers = data.get(True) or data.get("on") or {}
-        trig = list(triggers.keys()) if isinstance(triggers, dict) else ([triggers] if isinstance(triggers, str) else list(triggers))
-        ci.append({"system": "GitHub Actions", "file": path, "name": data.get("name"), "triggers": [str(t) for t in trig]})
-    for name, system in ((".gitlab-ci.yml", "GitLab CI"), ("Jenkinsfile", "Jenkins"), ("bitbucket-pipelines.yml", "Bitbucket Pipelines"),
-                         ("azure-pipelines.yml", "Azure Pipelines"), (".circleci/config.yml", "CircleCI"), ("codemagic.yaml", "Codemagic")):
+        trig = (
+            list(triggers.keys())
+            if isinstance(triggers, dict)
+            else ([triggers] if isinstance(triggers, str) else list(triggers))
+        )
+        ci.append(
+            {
+                "system": "GitHub Actions",
+                "file": path,
+                "name": data.get("name"),
+                "triggers": [str(t) for t in trig],
+            }
+        )
+    for name, system in (
+        (".gitlab-ci.yml", "GitLab CI"),
+        ("Jenkinsfile", "Jenkins"),
+        ("bitbucket-pipelines.yml", "Bitbucket Pipelines"),
+        ("azure-pipelines.yml", "Azure Pipelines"),
+        (".circleci/config.yml", "CircleCI"),
+        ("codemagic.yaml", "Codemagic"),
+    ):
         if repo.exists(name):
             ci.append({"system": system, "file": name, "name": None, "triggers": []})
     return {"dockerfiles": dockerfiles, "compose_services": compose, "ci": ci}

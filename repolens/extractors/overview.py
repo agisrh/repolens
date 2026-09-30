@@ -11,18 +11,53 @@ import yaml
 from repolens.repo import Repo, strip_credentials
 
 LANGUAGES = {
-    ".dart": "Dart", ".java": "Java", ".kt": "Kotlin", ".kts": "Kotlin", ".php": "PHP",
-    ".js": "JavaScript", ".jsx": "JavaScript (JSX)", ".mjs": "JavaScript", ".cjs": "JavaScript",
-    ".ts": "TypeScript", ".tsx": "TypeScript (TSX)", ".py": "Python", ".go": "Go", ".rb": "Ruby",
-    ".cs": "C#", ".swift": "Swift", ".m": "Objective-C", ".rs": "Rust", ".c": "C", ".h": "C/C++ Header",
-    ".cpp": "C++", ".cc": "C++", ".scala": "Scala", ".vue": "Vue", ".svelte": "Svelte",
-    ".html": "HTML", ".css": "CSS", ".scss": "SCSS", ".sass": "Sass", ".less": "Less",
-    ".sql": "SQL", ".sh": "Shell", ".groovy": "Groovy", ".xml": "XML", ".blade.php": "Blade",
+    ".dart": "Dart",
+    ".java": "Java",
+    ".kt": "Kotlin",
+    ".kts": "Kotlin",
+    ".php": "PHP",
+    ".js": "JavaScript",
+    ".jsx": "JavaScript (JSX)",
+    ".mjs": "JavaScript",
+    ".cjs": "JavaScript",
+    ".ts": "TypeScript",
+    ".tsx": "TypeScript (TSX)",
+    ".py": "Python",
+    ".go": "Go",
+    ".rb": "Ruby",
+    ".cs": "C#",
+    ".swift": "Swift",
+    ".m": "Objective-C",
+    ".rs": "Rust",
+    ".c": "C",
+    ".h": "C/C++ Header",
+    ".cpp": "C++",
+    ".cc": "C++",
+    ".scala": "Scala",
+    ".vue": "Vue",
+    ".svelte": "Svelte",
+    ".html": "HTML",
+    ".css": "CSS",
+    ".scss": "SCSS",
+    ".sass": "Sass",
+    ".less": "Less",
+    ".sql": "SQL",
+    ".sh": "Shell",
+    ".groovy": "Groovy",
+    ".xml": "XML",
+    ".blade.php": "Blade",
 }
 
 
-SKELETON_NAMES = {"codeigniter4/framework", "codeigniter4/appstarter", "codeigniter/framework", "laravel/laravel",
-                  "laravel/lumen", "symfony/skeleton", "symfony/website-skeleton"}
+SKELETON_NAMES = {
+    "codeigniter4/framework",
+    "codeigniter4/appstarter",
+    "codeigniter/framework",
+    "laravel/laravel",
+    "laravel/lumen",
+    "symfony/skeleton",
+    "symfony/website-skeleton",
+}
 
 
 def git_info(repo: Repo) -> dict:
@@ -63,7 +98,12 @@ def identity(repo: Repo) -> dict:
     if repo.exists("pubspec.yaml"):
         try:
             data = yaml.safe_load(repo.read("pubspec.yaml")) or {}
-            take(data.get("name"), str(data.get("version") or "") or None, data.get("description"), "pubspec.yaml")
+            take(
+                data.get("name"),
+                str(data.get("version") or "") or None,
+                data.get("description"),
+                "pubspec.yaml",
+            )
         except yaml.YAMLError:
             pass
     if repo.exists("package.json"):
@@ -108,7 +148,15 @@ def identity(repo: Repo) -> dict:
 
 
 def readme_excerpt(repo: Repo, limit: int = 6000) -> str:
-    for candidate in ("README.md", "readme.md", "README.MD", "Readme.md", "README.rst", "README.txt", "README"):
+    for candidate in (
+        "README.md",
+        "readme.md",
+        "README.MD",
+        "Readme.md",
+        "README.rst",
+        "README.txt",
+        "README",
+    ):
         if repo.exists(candidate):
             return repo.read(candidate)[:limit]
     return ""
@@ -177,6 +225,11 @@ def languages(repo: Repo) -> list[dict]:
         lines[lang] += repo.read(f).count("\n")
     total = sum(lines.values()) or 1
     return [
-        {"language": lang, "files": files[lang], "lines": lines[lang], "percent": round(lines[lang] * 100 / total, 1)}
+        {
+            "language": lang,
+            "files": files[lang],
+            "lines": lines[lang],
+            "percent": round(lines[lang] * 100 / total, 1),
+        }
         for lang, _ in lines.most_common()
     ]
