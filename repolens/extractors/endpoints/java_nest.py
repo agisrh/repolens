@@ -10,15 +10,10 @@ from __future__ import annotations
 import re
 from pathlib import PurePosixPath
 
+from repolens.extractors._text import JAVA_CLASS_DECL
 from repolens.extractors.endpoints._common import FileScan, balanced, join_paths, strings
 from repolens.repo import Repo
 
-CLASS_DECL = re.compile(
-    r"^[ \t]*(?:@\w+(?:\([^)]*\))?\s+)*"  # annotations
-    r"(?:(?:public|protected|private|abstract|final|open|data|sealed|internal)\s+)*"  # modifiers
-    r"(class|interface)\s+(\w+)(?:<[^>]*>)?(?:\s+extends\s+(\w+))?",
-    re.M,
-)
 MAPPING = re.compile(r"@(Get|Post|Put|Delete|Patch|Request)Mapping\b")
 HANDLER_JAVA = re.compile(r"(?:public|protected|private|fun)\s+(?:[\w<>\[\],.?\s]+?\s+)?(\w+)\s*\(")
 # Mapping attributes that are not paths.
@@ -36,7 +31,7 @@ def spring(repo: Repo) -> list[dict]:
         text = repo.read(path)
         if "Mapping" not in text or not re.search(r"@(Rest)?Controller\b", text):
             continue
-        class_match = CLASS_DECL.search(text)
+        class_match = JAVA_CLASS_DECL.search(text)
         # Offset of the `class` keyword itself, so class-level annotations come before it.
         class_pos = class_match.start(1) if class_match else 0
         class_name = class_match.group(2) if class_match else PurePosixPath(path).stem

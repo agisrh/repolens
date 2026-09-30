@@ -9,7 +9,10 @@ from __future__ import annotations
 
 import re
 
+from repolens.extractors._text import balanced, block_end, strings, uncommented
 from repolens.repo import line_of
+
+__all__ = ["balanced", "block_end", "strings", "uncommented"]  # re-exported for the extractors
 
 HTTP_METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD")
 
@@ -62,45 +65,6 @@ def join_paths(*parts: str) -> str:
     return "/" + joined if joined else "/"
 
 
-def strings(args: str) -> list[str]:
-    """The quoted string literals in a piece of code, in order."""
-    return re.findall(r"[\"']([^\"']*)[\"']", args or "")
-
-
-def balanced(text: str, start: int) -> tuple[str, int]:
-    """Contents of the parenthesised group opening at text[start] == "(", and the offset after it.
-
-    Parentheses inside string literals are ignored."""
-    depth = 0
-    in_string = None
-    for i in range(start, len(text)):
-        char = text[i]
-        if in_string:
-            if char == in_string and text[i - 1] != "\\":
-                in_string = None
-            continue
-        if char in "\"'`":
-            in_string = char
-        elif char == "(":
-            depth += 1
-        elif char == ")":
-            depth -= 1
-            if depth == 0:
-                return text[start + 1 : i], i + 1
-    return text[start + 1 :], len(text)
-
-
-def block_end(text: str, brace: int) -> int:
-    """Offset of the "}" that closes the "{" at text[brace] (or the end of the text)."""
-    depth, i = 0, brace
-    while i < len(text):
-        depth += (text[i] == "{") - (text[i] == "}")
-        if depth == 0:
-            break
-        i += 1
-    return i
-
-
 def scoped_prefixes(text: str, group_re: re.Pattern) -> list[tuple[int, int, str]]:
     """Find `group("prefix") ... { ... }` blocks: (start, end, prefix) for each.
 
@@ -116,12 +80,6 @@ def scoped_prefixes(text: str, group_re: re.Pattern) -> list[tuple[int, int, str
 def prefix_at(spans: list[tuple[int, int, str]], pos: int) -> str:
     """The combined prefix of every group block that contains `pos`."""
     return join_paths(*[p for start, end, p in spans if start < pos < end]) if spans else ""
-
-
-def uncommented(text: str) -> str:
-    """Drop lines that are comments (//, #, /* and * continuation lines)."""
-    lines = text.splitlines()
-    return "\n".join(line for line in lines if not line.lstrip().startswith(("//", "#", "*", "/*")))
 
 
 def php_handler(raw: str) -> str:
