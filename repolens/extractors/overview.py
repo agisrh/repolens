@@ -8,6 +8,7 @@ from collections import Counter, defaultdict
 
 import yaml
 
+from repolens.i18n import t
 from repolens.repo import Repo, strip_credentials
 
 LANGUAGES = {
@@ -61,6 +62,7 @@ SKELETON_NAMES = {
 
 
 def git_info(repo: Repo) -> dict:
+    """Commit, branch, tags, remote, and history counts ({"is_git": False} outside git)."""
     if not repo.is_git:
         return {"is_git": False}
     head_tags = repo.git("tag", "--points-at", "HEAD").split()
@@ -159,6 +161,7 @@ IDENTITY_READERS = [_pubspec_identity, _json_identity, _maven_identity, _gradle_
 
 
 def readme_excerpt(repo: Repo, limit: int = 6000) -> str:
+    """The start of the README (for the AI summary), or "" without one."""
     for candidate in (
         "README.md",
         "readme.md",
@@ -192,6 +195,7 @@ def folder_tree(repo: Repo, max_depth: int = 3, max_children: int = 20) -> dict:
     lines = [repo.root.name + "/"]
 
     def walk(parent: str, prefix: str, depth: int):
+        """Add the lines for the children of `parent`, recursing into folders."""
         dirs = sorted(children.get(parent, ()))
         entries: list[tuple[str, bool]] = [(d, True) for d in dirs]
         if parent == "":
@@ -202,12 +206,17 @@ def folder_tree(repo: Repo, max_depth: int = 3, max_children: int = 20) -> dict:
             last = i == len(entries) - 1 and not hidden
             branch = "└── " if last else "├── "
             name = path.rsplit("/", 1)[-1]
-            label = f"{name}/  ({counts[path]} file)" if is_dir else name
+            count = counts[path]
+            label = (
+                name + "/  " + t(f"({count} file{'' if count == 1 else 's'})", f"({count} file)")
+                if is_dir
+                else name
+            )
             lines.append(prefix + branch + label)
             if is_dir and depth < max_depth:
                 walk(path, prefix + ("    " if last else "│   "), depth + 1)
         if hidden:
-            lines.append(prefix + f"└── … (+{hidden} lainnya)")
+            lines.append(prefix + "└── … " + t(f"(+{hidden} more)", f"(+{hidden} lainnya)"))
 
     walk("", "", 1)
     dirs = sorted(d for d in counts if d.count("/") < 2)
@@ -220,6 +229,7 @@ def folder_tree(repo: Repo, max_depth: int = 3, max_children: int = 20) -> dict:
 
 
 def languages(repo: Repo) -> list[dict]:
+    """Files and lines per language, most lines first."""
     files: Counter[str] = Counter()
     lines: Counter[str] = Counter()
     for f in repo.files:

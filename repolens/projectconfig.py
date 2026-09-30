@@ -62,6 +62,7 @@ def load(root: Path) -> dict:
 
 
 def _unknown_keys(name: str, data: dict, warnings: list[str]) -> None:
+    """Drop keys that are not in KNOWN_KEYS (a typo would otherwise do nothing silently)."""
     for key in [k for k in data if k not in KNOWN_KEYS]:
         keys = ", ".join(KNOWN_KEYS)
         warnings.append(
@@ -211,6 +212,7 @@ def _endpoints(name: str, data: dict, warnings: list[str]) -> None:
 
 
 def _tree_depth(name: str, data: dict, warnings: list[str]) -> None:
+    """tree_depth must be a whole number of 1 or more."""
     depth = data.get("tree_depth")
     if "tree_depth" in data and (
         not isinstance(depth, int) or isinstance(depth, bool) or depth < 1

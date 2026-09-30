@@ -85,6 +85,7 @@ def summary(doc: Blocks, facts: dict) -> None:
 
 
 def _counts(facts: dict) -> dict:
+    """Numbers used in the summary sentence and table."""
     endpoints = facts["endpoints"]
     return {
         "files": facts["tree"]["total_files"],

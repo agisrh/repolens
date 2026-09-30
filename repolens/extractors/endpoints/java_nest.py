@@ -26,6 +26,7 @@ NEST_METHOD = re.compile(r"@(Get|Post|Put|Delete|Patch|Options|Head|All)\(\s*([^
 
 
 def spring(repo: Repo) -> list[dict]:
+    """Endpoints of @RestController / @Controller classes in Java and Kotlin."""
     out = []
     for path in repo.by_ext(".java", ".kt"):
         text = repo.read(path)
@@ -67,6 +68,7 @@ def _class_prefix(before_class: str, text: str) -> str:
 
 
 def nestjs(repo: Repo) -> list[dict]:
+    """Endpoints of @Controller classes in TypeScript."""
     out = []
     for path in repo.by_ext(".ts"):
         text = repo.read(path)

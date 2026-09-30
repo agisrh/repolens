@@ -33,6 +33,7 @@ READERS = [
 
 
 def extract(repo: Repo) -> list[dict]:
+    """Every recognised manifest that lists dependencies (or at least a project name)."""
     manifests = []
     for filename, read in READERS:
         for path in repo.by_name(filename):

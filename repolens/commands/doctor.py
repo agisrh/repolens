@@ -109,6 +109,7 @@ def _print_overview(facts: dict) -> None:
 
 
 def _print_stack(facts: dict) -> None:
+    """Detected frameworks with version and where each came from."""
     ui.section("Tech stack")
     if not facts["frameworks"]:
         ui.skip(t("nothing recognised", "tidak ada yang dikenali"))
@@ -119,6 +120,7 @@ def _print_stack(facts: dict) -> None:
 
 
 def _print_dependencies(facts: dict) -> None:
+    """One line per manifest: package count and lock file."""
     ui.section("Dependency")
     if not facts["dependencies"]:
         ui.skip(t("none", "tidak ada"))

@@ -29,6 +29,7 @@ from repolens.i18n import LANGUAGES, set_lang, t
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """The `repolens` argument parser, with one sub-command per module in COMMANDS."""
     common = argparse.ArgumentParser(add_help=False)  # options every command accepts
     option(
         common,

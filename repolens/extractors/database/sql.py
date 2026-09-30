@@ -22,6 +22,7 @@ CONSTRAINT = re.compile(r"^(PRIMARY|FOREIGN|CONSTRAINT|KEY|INDEX|UNIQUE|CHECK|FU
 
 
 def sql_files(repo: Repo, extra: list[str] = ()) -> list[dict]:
+    """Every CREATE TABLE in .sql files and in the schema dumps from .repolens.yml."""
     tables = []
     for path in dict.fromkeys(repo.by_ext(".sql") + list(extra)):
         text = repo.read(path)

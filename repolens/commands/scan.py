@@ -250,6 +250,7 @@ def _report(args, facts: dict, out_dir: Path, written: list[Path], elapsed: floa
 
 
 def _summary_rows(facts: dict) -> list[tuple[str, str]]:
+    """Rows of the closing summary: stack, endpoint counts, tables, security findings."""
     endpoints, tables = facts["endpoints"], len(facts["database"]["tables"])
     server, client, pages = (len(endpoints[k]) for k in ("server", "client", "pages"))
     secrets = facts["security"]["secrets"]
@@ -278,6 +279,7 @@ def _stack_line(facts: dict) -> str:
 
 
 def _json_result(args, facts: dict, out_dir: Path, written: list[Path], elapsed: float) -> dict:
+    """The --json result: project, release, files written, counts, frameworks, coverage."""
     endpoints = facts["endpoints"]
     return {
         "project": facts["project"]["name"],

@@ -59,6 +59,7 @@ def _route_path(relative: str) -> str:
 
 
 def _app_router(repo: Repo, path: str, normalized: str, marker: str) -> list[dict]:
+    """app/**/route.ts is an endpoint per exported method; app/**/page.tsx is a page."""
     relative = normalized.split(marker, 1)[1]
     name = relative.rsplit("/", 1)[-1]
     if re.fullmatch(r"route\.(ts|js|tsx|jsx)", name):
@@ -78,6 +79,7 @@ def _app_router(repo: Repo, path: str, normalized: str, marker: str) -> list[dic
 
 
 def _pages_router(repo: Repo, path: str, normalized: str, marker: str) -> list[dict]:
+    """pages/api/** are endpoints; other pages/** files are pages (_app, _document excluded)."""
     relative = normalized.split(marker, 1)[1]
     if not re.search(r"\.(tsx|jsx|ts|js)$", relative):
         return []

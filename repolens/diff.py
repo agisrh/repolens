@@ -149,6 +149,8 @@ def _tables(old: dict, new: dict) -> list[dict]:
 
 
 def _env_keys(old: dict, new: dict) -> list[dict]:
+    """Env key names added or removed across all .env files."""
+
     def keys(facts: dict) -> set:
         return {key for env in facts["config"]["env_files"] for key in env["keys"]}
 

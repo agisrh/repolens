@@ -190,6 +190,7 @@ def load_settings() -> dict:
 
 
 def save_settings(**values) -> None:
+    """Update settings.json; a value of None removes that setting."""
     data = load_settings()
     for name, value in values.items():
         if value is None:

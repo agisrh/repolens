@@ -2,6 +2,26 @@
 
 All notable changes to RepoLens. Versions follow [Semantic Versioning](https://semver.org); releases are git tags (`vX.Y.Z`).
 
+## [Unreleased]
+
+### Changed
+- Code reorganised for readability and maintenance, with no change in scan results or
+  documents (verified by comparing every scan fact, document block, Markdown, PDF, and
+  Word output before and after): one module per command (`repolens/commands/`), per
+  endpoint stack, per schema source, per dependency ecosystem, and per document section;
+  long functions split into named steps; lines at most 100 characters (`ruff format`);
+  a docstring in every module.
+- CI also checks formatting and lint with `ruff`.
+- `CONTRIBUTING.md` explains the code layout, conventions, and where to add features.
+
+### Fixed
+- English documents showed two Indonesian texts: "diubah oleh" on Laravel tables changed by
+  a later migration, and "(+N lainnya)" / "(N file)" in the folder tree.
+
+### Added
+- Tests for the AI request (every way it can be skipped), failed updates, and single
+  extractors.
+
 ## [0.4.0] - 2026-09-30
 
 ### Added

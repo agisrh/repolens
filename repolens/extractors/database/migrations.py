@@ -68,6 +68,7 @@ def laravel_migrations(repo: Repo) -> list[dict]:
 
 
 def _laravel_columns(body: str) -> list[dict]:
+    """Columns added by the $table-> calls inside one Schema::create/table block."""
     columns = []
     for match in LARAVEL_COLUMN.finditer(body):
         method, name, args, chain = (

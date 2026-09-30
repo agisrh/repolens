@@ -17,6 +17,7 @@ def _anchor(text: str) -> str:
 
 
 def render(blocks: list[dict], path: Path) -> Path:
+    """Write the blocks as GitHub-flavoured Markdown to `path`."""
     lines: list[str] = []
     h1_index = 0
     headings = [blk["text"] for blk in blocks if blk["t"] == "h1"]

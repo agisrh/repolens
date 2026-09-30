@@ -45,6 +45,7 @@ def ask(question):
 
 
 def select(message: str, choices: list, default=None):
+    """Pick one of `choices` with the arrow keys."""
     return ask(
         questionary.select(
             message,
@@ -58,6 +59,7 @@ def select(message: str, choices: list, default=None):
 
 
 def _folder(message: str, default: str = ".") -> str:
+    """Ask for a folder that exists (with path completion)."""
     return ask(
         questionary.path(
             message,
@@ -76,6 +78,7 @@ def _text(message: str, default: str = "", validate=None) -> str:
 
 
 def _git(folder: str, *args: str) -> list[str]:
+    """Output lines of a git command in `folder`; [] when it fails."""
     try:
         result = subprocess.run(
             ["git", "-C", folder, *args],
@@ -100,6 +103,7 @@ def _is_git_repo(folder: str) -> bool:
 def _pick_ref(
     folder: str, message: str, exclude: str | None = None, allow_none: bool = False
 ) -> str | None:
+    """Choose a recent tag or branch, or type any ref (optionally "no comparison")."""
     tags = [tag for tag in _git(folder, "tag", "--sort=-creatordate")[:25] if tag != exclude]
     branches = [
         b
@@ -131,6 +135,7 @@ def _recent_scans() -> list[Path]:
 
 
 def _pick_scan(message: str, exclude: Path | None = None) -> str:
+    """Choose a recent docs-output/*/scan.json, or type the path of another one."""
     scans = [p for p in _recent_scans() if p != exclude]
     if scans:
         choice = select(
@@ -152,6 +157,7 @@ def _pick_scan(message: str, exclude: Path | None = None) -> str:
 
 
 def _formats() -> str:
+    """Tick the output formats (all three by default)."""
     picked = ask(
         questionary.checkbox(
             t("Formats", "Format"),
@@ -294,6 +300,7 @@ def _use_ai() -> bool:
 
 
 def _auth_flow() -> list[str]:
+    """Save, show, or remove the API key."""
     return [
         "auth",
         select(

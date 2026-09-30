@@ -81,8 +81,9 @@ def maven_pom(repo: Repo, path: str) -> dict | None:
 
 
 GRADLE_DEP = re.compile(
-    r"^\s*(implementation|api|compileOnly|runtimeOnly|testImplementation|annotationProcessor|kapt|ksp|developmentOnly|testRuntimeOnly)"
-    r"\s*\(?\s*(?:platform\()?['\"]([^'\"]+)['\"]",
+    r"^\s*(implementation|api|compileOnly|runtimeOnly|testImplementation|annotationProcessor"
+    r"|kapt|ksp|developmentOnly|testRuntimeOnly)"  # the configuration
+    r"\s*\(?\s*(?:platform\()?['\"]([^'\"]+)['\"]",  # "group:artifact:version"
     re.M,
 )
 
@@ -105,7 +106,8 @@ def gradle(repo: Repo, path: str) -> dict | None:
         )
     ]
     java = re.search(
-        r"(?:sourceCompatibility|languageVersion)\s*[=(]?\s*(?:JavaVersion\.VERSION_|JavaLanguageVersion\.of\()?['\"]?([\d._]+)",
+        r"(?:sourceCompatibility|languageVersion)\s*[=(]?\s*"
+        r"(?:JavaVersion\.VERSION_|JavaLanguageVersion\.of\()?['\"]?([\d._]+)",
         text,
     )
     if not deps and not plugins:

@@ -182,6 +182,8 @@ When a project comes out wrong:
 
 CI runs the tests on Python 3.10–3.14 on Linux and macOS for every push and pull request.
 
+How the code is organised, its conventions, and where to add a new stack, section, or command: [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## What the document contains
 
 | Section | Source |

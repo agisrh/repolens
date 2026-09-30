@@ -19,6 +19,7 @@ GO_ROUTE = re.compile(
 
 
 def python(repo: Repo) -> list[dict]:
+    """FastAPI and Flask decorators in any .py file; Django path() in urls.py."""
     out = []
     for path in repo.by_ext(".py"):
         text = repo.read(path)
@@ -44,6 +45,7 @@ def python(repo: Repo) -> list[dict]:
 
 
 def go(repo: Repo) -> list[dict]:
+    """Gin, Echo, and Fiber style r.GET("/path", handler) routes."""
     out = []
     for path in repo.by_ext(".go"):
         text = repo.read(path)

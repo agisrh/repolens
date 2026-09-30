@@ -194,6 +194,7 @@ def generate(
 
 
 def _no_key() -> _Skipped:
+    """The reason used when no credentials can be found at all."""
     return _Skipped(
         t(
             "no Anthropic API key. Run `repolens auth login`, or set ANTHROPIC_API_KEY.",

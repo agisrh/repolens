@@ -26,6 +26,7 @@ def pubspec(repo: Repo, path: str) -> dict | None:
     packages = lock.get("packages") or {}
 
     def describe(spec):
+        """(declared version, source note) for a dependency spec: a version, sdk, path, or git."""
         if isinstance(spec, dict):
             if "sdk" in spec:
                 return None, f"sdk: {spec['sdk']}"

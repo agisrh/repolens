@@ -31,6 +31,7 @@ GROUP = re.compile(
 
 
 def laravel(repo: Repo, extra: list[str] = ()) -> list[dict]:
+    """Routes from routes/*.php and from extra route files that use Route::."""
     out = []
     files = repo.glob("routes/*.php") + [f for f in extra if "Route::" in repo.read(f)]
     for path in dict.fromkeys(files):

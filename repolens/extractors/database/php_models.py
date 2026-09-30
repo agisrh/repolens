@@ -162,6 +162,7 @@ def _add_eloquent_table(path: str, text: str, properties: dict, found: dict) -> 
 
 
 def _as_tables(found: dict) -> list[dict]:
+    """The collected entries as tables (sorted by name), marked as inferred."""
     tables = []
     for name, entry in sorted(found.items()):
         columns = [column(entry["pk"], "?", "PK")] if entry["pk"] else []

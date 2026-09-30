@@ -8,6 +8,7 @@ from repolens.i18n import label, number, signed, t
 
 
 def changes(doc: Blocks, facts: dict) -> None:
+    """2. What changed since the compared release, one table per area."""
     diff = facts.get("changes")
     if not diff:
         return

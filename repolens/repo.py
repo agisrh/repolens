@@ -56,6 +56,10 @@ MAX_READ_BYTES = 1_500_000
 
 
 class Repo:
+    """The files of the scanned folder, with helpers to find and read them.
+
+    Reading never raises: a missing, unreadable, or very large file reads as ""."""
+
     def __init__(self, root: str | Path, ignore: list[str] = (), use_git: bool = True):
         self.root = Path(root).resolve()
         if not self.root.is_dir():
@@ -119,6 +123,7 @@ class Repo:
         return [f for f in self.files if f.endswith(exts)]
 
     def read(self, rel: str) -> str:
+        """Text of a file ("" when it is missing, unreadable, or larger than MAX_READ_BYTES)."""
         path = self.root / rel
         try:
             if path.stat().st_size > MAX_READ_BYTES:
@@ -130,6 +135,7 @@ class Repo:
     # ---- git -------------------------------------------------------------
 
     def git(self, *args: str) -> str:
+        """Output of a git command in the folder; "" when git fails or is not installed."""
         try:
             out = subprocess.run(
                 ["git", *args],

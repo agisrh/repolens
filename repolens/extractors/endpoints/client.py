@@ -34,6 +34,7 @@ def client_calls(repo: Repo) -> list[dict]:
 
 
 def _javascript_calls(repo: Repo) -> list[dict]:
+    """axios/api/http... calls and fetch() in JavaScript, TypeScript, and Vue files."""
     out = []
     for path in repo.by_ext(".js", ".jsx", ".ts", ".tsx", ".vue"):
         if "/pages/api/" in "/" + path or re.search(r"(^|/)app/.*route\.(ts|js)$", path):
@@ -57,6 +58,7 @@ def _javascript_calls(repo: Repo) -> list[dict]:
 
 
 def _dart_calls(repo: Repo) -> list[dict]:
+    """api.call(path, method: MethodRequest.x) wrappers and dio/http calls in Dart files."""
     out = []
     for path in repo.by_ext(".dart"):
         text = repo.read(path)

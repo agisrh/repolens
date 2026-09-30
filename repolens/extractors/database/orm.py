@@ -73,6 +73,7 @@ def jpa_entities(repo: Repo) -> list[dict]:
 
 
 def _jpa_columns(text: str, class_end: int) -> list[dict]:
+    """Fields of an entity class; @Column(name=...) renames, @Transient and static are skipped."""
     columns = []
     for field in JPA_FIELD.finditer(text, class_end):
         annotations, type_, name = field.group(1) or "", field.group(2).strip(), field.group(3)

@@ -10,6 +10,20 @@ permissions:
   contents: read
 
 jobs:
+  lint:
+    name: Style and lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: python -m pip install "ruff>=0.6"
+      - name: Formatting (run `ruff format` to fix)
+        run: ruff format --check repolens tests
+      - name: Lint (line length, imports, likely bugs)
+        run: ruff check repolens tests
+
   test:
     name: Python ${{ matrix.python }} · ${{ matrix.os }}
     runs-on: ${{ matrix.os }}

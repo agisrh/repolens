@@ -39,6 +39,7 @@ def mobile_platforms(repo: Repo) -> dict:
 
 
 def _android(file: str, text: str) -> dict:
+    """Settings from android/app/build.gradle(.kts)."""
     return {
         "file": file,
         "application_id": _gradle_value(text, "applicationId"),
@@ -114,6 +115,7 @@ def _dockerfiles(repo: Repo) -> list[dict]:
 
 
 def _compose_services(repo: Repo) -> list[dict]:
+    """Every service in docker-compose / compose files, with its image and ports."""
     services = []
     for path in repo.by_name(*COMPOSE_FILES):
         try:
@@ -129,6 +131,7 @@ def _compose_services(repo: Repo) -> list[dict]:
 
 
 def _github_actions(repo: Repo) -> list[dict]:
+    """Every GitHub Actions workflow with its name and triggers."""
     workflows = []
     for path in repo.glob(".github/workflows/*.yml", ".github/workflows/*.yaml"):
         try:

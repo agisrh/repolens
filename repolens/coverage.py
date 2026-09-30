@@ -92,6 +92,7 @@ def _stack(repo: Repo, facts: dict) -> list[dict]:
 
 
 def _framework_version(framework: dict) -> list[dict]:
+    """A main framework without a version, or with only a range such as ^8.1."""
     name, version, source = framework["name"], framework["version"], framework["source"]
     if not version:
         if "vendor" in source:
@@ -274,6 +275,7 @@ def _unrouted_controllers(repo: Repo, server: list[dict]) -> list[dict]:
 
 
 def _php_controllers(repo: Repo) -> list[str]:
+    """Names of the PHP controllers (base controllers left out)."""
     names = []
     pattern = re.compile(
         r"(^|/)(app|application)/(Controllers|controllers|Http/Controllers)/.+\.php$"

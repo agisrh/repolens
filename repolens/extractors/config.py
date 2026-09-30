@@ -128,6 +128,7 @@ def secrets(repo: Repo) -> list[dict]:
 
 
 def _secrets_in_file(repo: Repo, path: str, text: str, seen: set) -> list[dict]:
+    """Findings in one file; `seen` keeps one finding per line across patterns."""
     findings = []
     for label, pattern in SECRET_PATTERNS:
         for match in pattern.finditer(text):
