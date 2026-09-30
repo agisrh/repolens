@@ -9,7 +9,7 @@ python3 -m venv .venv
 .venv/bin/pip install -e .
 ```
 
-Butuh Python 3.10+ dan `git`. Untuk AI (opsional): kredensial Anthropic.
+Butuh Python 3.10+ dan `git`. Untuk AI (opsional): API key Anthropic, atur dengan `repolens auth login`.
 
 ## Pemakaian
 
@@ -190,11 +190,31 @@ Untuk stack lain, bagian umum (struktur folder, bahasa, dependency, env, keamana
 
 ## AI
 
-Tanpa `--no-ai`, CLI meminta Claude menulis ringkasan, penjelasan arsitektur, keterangan folder, daftar modul, langkah setup, dan observasi. Kredensial dibaca dari `ANTHROPIC_API_KEY` atau profil `ant auth login`. Jika kredensial tidak ada, bagian AI dilewati dan dokumen tetap dibuat.
+Tanpa `--no-ai`, CLI meminta Claude menulis ringkasan, penjelasan arsitektur, keterangan folder, daftar modul, langkah setup, dan observasi. Jika tidak ada API key, bagian AI dilewati dan dokumen tetap dibuat.
+
+### API key dan model milik sendiri
+
+Setiap pengguna memakai API key Anthropic-nya sendiri:
+
+```bash
+repolens auth login                  # minta key (input tersembunyi) dan pilih model, cek ke Anthropic, lalu simpan
+repolens auth status                 # key yang dipakai (disamarkan: sk-ant-…a1b2), sumbernya, model, dan hasil cek
+repolens auth logout                 # hapus key yang disimpan
+
+pass show anthropic | repolens auth login --model claude-sonnet-5-5   # non-interaktif: key dibaca dari stdin
+```
+
+Bisa juga lewat menu (`repolens` → *Atur AI*). Saat memilih ringkasan AI tanpa key, menu langsung menawarkan untuk mengaturnya.
+
+- **Penyimpanan:** keychain OS (macOS Keychain, Windows Credential Manager, Linux Secret Service). Jika tidak tersedia (misalnya server tanpa GUI, atau `REPOLENS_NO_KEYRING=1`), key disimpan di `~/.config/repolens/credentials.json` dengan izin `600`.
+- **Urutan key yang dipakai:** `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` → key dari `repolens auth login` → profil `ant auth login`. CI cukup memakai env var seperti biasa.
+- **Key tidak pernah** diterima sebagai flag (terlihat di history shell dan `ps`), ditulis ke `.repolens.yml` (ikut di-commit), atau ditampilkan utuh.
+- Key dicek ke Anthropic sebelum disimpan (Models API, tanpa biaya token). Key yang ditolak tidak disimpan.
+- **Model:** `--model` → `REPOLENS_MODEL` → model pilihan di `auth login` → default `claude-opus-5-5`. Pilihan di `auth login`: `claude-opus-5-5` (paling teliti) atau `claude-sonnet-5-5` (lebih cepat, sekitar setengah biayanya). Lokasi folder pengaturan bisa diganti dengan `REPOLENS_CONFIG_DIR`.
 
 Yang dikirim ke AI **hanya fakta hasil scan**: nama, versi, path, nama kolom, nama env key, dan potongan README. Isi source code, nilai env, dan cuplikan rahasia tidak pernah dikirim. Gunakan `--no-ai` jika tidak ada data yang boleh keluar sama sekali.
 
-Model default: `claude-opus-5`, dengan server-side fallback (`fallbacks: "default"`) jika permintaan ditolak oleh classifier.
+Model default: `claude-opus-5-5`, dengan server-side fallback (`fallbacks: "default"`) jika permintaan ditolak oleh classifier.
 
 ## Keterbatasan
 

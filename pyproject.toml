@@ -16,6 +16,7 @@ dependencies = [
     "tomli>=2.0; python_version < '3.11'",
     "rich>=13",
     "questionary>=2",
+    "keyring>=24",
 ]
 
 [project.scripts]

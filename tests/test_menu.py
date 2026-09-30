@@ -45,7 +45,8 @@ def test_scan_local_folder_as_plain_files(answers, tmp_path):
     assert menu.run() == ["scan", str(repo), "--no-git", "--no-ai", "--lang", "en"]
 
 
-def test_scan_release_tag_compared_with_previous(answers, tmp_path):
+def test_scan_release_tag_compared_with_previous(answers, tmp_path, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
     repo = git_repo(tmp_path)
     answers += ["scan", "local", str(repo), "ref", "v1.1.0", "v1.0.0", ["pdf"], True, "id", "out", True]
     assert menu.run() == ["scan", str(repo), "--ref", "v1.1.0", "--compare-ref", "v1.0.0", "--format", "pdf",
@@ -62,6 +63,19 @@ def test_scan_folder_that_is_not_a_git_repo_skips_git_questions(answers, tmp_pat
 def test_scan_git_url(answers):
     answers += ["scan", "url", "git@github.com:org/app.git", "v2.0.0", "", ["pdf", "docx", "md"], False, "en", "docs-output", True]
     assert menu.run() == ["scan", "git@github.com:org/app.git", "--ref", "v2.0.0", "--no-ai", "--lang", "en"]
+
+
+def test_ai_without_a_key_offers_setup_and_falls_back_to_no_ai(answers, tmp_path):
+    folder = tmp_path / "plain"
+    shutil.copytree(FIXTURES / "laravel_groups", folder)
+    # AI? yes -> set up a key now? no -> scanned without AI
+    answers += ["scan", "local", str(folder), ["md"], True, False, "en", "docs-output", True]
+    assert menu.run() == ["scan", str(folder), "--format", "md", "--no-ai", "--lang", "en"]
+
+
+def test_auth_entry(answers):
+    answers += ["auth", "status", True]
+    assert menu.run() == ["auth", "status"]
 
 
 def test_quit_and_decline_return_nothing(answers):

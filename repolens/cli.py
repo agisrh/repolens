@@ -6,6 +6,7 @@
   repolens init <folder>           create a .repolens.yml template from what was detected
   repolens export <scan.json>      render documents again from a previous scan
   repolens diff <old.json> <new.json>
+  repolens auth login|status|logout   your own Anthropic API key and model for the AI summary
 
 Every command takes --lang en|id (default: REPOLENS_LANG or en) and --debug.
 """
@@ -21,7 +22,7 @@ import time
 from contextlib import ExitStack
 from pathlib import Path
 
-from repolens import __version__, ai, coverage, diff, document, projectconfig, ui
+from repolens import __version__, ai, auth, coverage, credentials, diff, document, projectconfig, ui
 from repolens.i18n import LANGUAGES, get_lang, label, set_lang, t
 from repolens.render import docx_out, markdown, pdf_out
 from repolens.scanner import is_git_url, prepared_source, scan
@@ -180,6 +181,7 @@ def _source_detail(args) -> str:
 def cmd_scan(args) -> int:
     started = time.monotonic()
     _check_source_options(args)
+    args.model = args.model or credentials.default_model(ai.DEFAULT_MODEL)
     previous = load_scan(args.compare) if args.compare else None  # fail before a long scan, not after
     formats = ", ".join(FORMAT_NAMES[f] for f in args.format)
     ai_state = t("off", "mati") if args.no_ai or args.dry_run else args.model
@@ -451,6 +453,16 @@ def cmd_diff(args) -> int:
     return 0
 
 
+# ---- auth -------------------------------------------------------------------
+
+def cmd_auth(args) -> int:
+    if args.action == "login":
+        return auth.login(model=args.model, verify=not args.no_verify)
+    if args.action == "logout":
+        return auth.logout()
+    return auth.status(as_json=args.json, verify=not args.offline)
+
+
 # ---- parser & entry point ---------------------------------------------------
 
 def build_parser() -> argparse.ArgumentParser:
@@ -478,7 +490,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--format", type=_formats, default=["pdf", "docx", "md"], help=t("pdf,docx,md (default: all three)", "pdf,docx,md (default: ketiganya)"))
     s.add_argument("--out", default="docs-output", help=t("Output folder (default: ./docs-output)", "Folder output (default: ./docs-output)"))
     s.add_argument("--no-ai", action="store_true", help=t("No AI summary (nothing is sent anywhere)", "Tanpa ringkasan AI (tidak ada data yang dikirim keluar)"))
-    s.add_argument("--model", default=ai.DEFAULT_MODEL, help=t(f"Claude model (default: {ai.DEFAULT_MODEL})", f"Model Claude (default: {ai.DEFAULT_MODEL})"))
+    s.add_argument("--model", help=t(f"Claude model (default: the one from `repolens auth login`, else {ai.DEFAULT_MODEL})",
+                                     f"Model Claude (default: pilihan di `repolens auth login`, atau {ai.DEFAULT_MODEL})"))
     s.add_argument("--tree-depth", type=_positive_int, help=t("Folder structure depth (default: 3, or tree_depth in .repolens.yml)",
                                                               "Kedalaman struktur folder (default: 3, atau tree_depth di .repolens.yml)"))
     s.add_argument("--dry-run", action="store_true", help=t("Scan and show the summary without writing files or calling AI",
@@ -515,6 +528,21 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("new")
     d.add_argument("--json", action="store_true", help=t("Print the changes as JSON", "Cetak perubahan sebagai JSON"))
     d.set_defaults(func=cmd_diff)
+
+    a = sub.add_parser("auth", parents=[common], help=t("Set your own Anthropic API key and model for the AI summary",
+                                                        "Atur API key Anthropic dan model Anda sendiri untuk ringkasan AI"))
+    actions = a.add_subparsers(dest="action")
+    login = actions.add_parser("login", parents=[common], help=t("Save an API key (asked for, or read from stdin), after checking it",
+                                                                 "Simpan API key (ditanyakan, atau dibaca dari stdin) setelah dicek"))
+    login.add_argument("--model", help=t(f"Default model for scans (e.g. {', '.join(ai.MODELS)})",
+                                         f"Model default untuk scan (mis. {', '.join(ai.MODELS)})"))
+    login.add_argument("--no-verify", action="store_true", help=t("Save without checking the key with Anthropic", "Simpan tanpa mengecek key ke Anthropic"))
+    status = actions.add_parser("status", parents=[common], help=t("Show which key and model are used, and check them",
+                                                                   "Tampilkan key dan model yang dipakai, lalu cek"))
+    status.add_argument("--offline", action="store_true", help=t("Do not contact Anthropic", "Tanpa menghubungi Anthropic"))
+    status.add_argument("--json", action="store_true", help=t("Print a JSON result", "Cetak hasil JSON"))
+    actions.add_parser("logout", parents=[common], help=t("Remove the saved key", "Hapus key yang disimpan"))
+    a.set_defaults(func=cmd_auth, action="status", offline=False, json=False)
     return parser
 
 

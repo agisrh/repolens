@@ -14,7 +14,7 @@ from pathlib import Path
 import questionary
 from questionary import Choice, Separator, Style
 
-from repolens import ui
+from repolens import credentials, ui
 from repolens.i18n import LANGUAGES, get_lang, t
 from repolens.scanner import is_git_url
 
@@ -154,16 +154,33 @@ def _scan_flow() -> list[str]:
     formats = _formats()
     if formats != "pdf,docx,md":
         argv += ["--format", formats]
-    has_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
-    if not _ask(questionary.confirm(t("Write a narrative summary with AI? (sends scan facts, never source code, to Anthropic)",
-                                      "Tulis ringkasan naratif dengan AI? (mengirim fakta hasil scan, bukan source code, ke Anthropic)"),
-                                    default=has_key, style=STYLE)):
+    has_key = credentials.available()
+    use_ai = _ask(questionary.confirm(t("Write a narrative summary with AI? (sends scan facts, never source code, to Anthropic)",
+                                        "Tulis ringkasan naratif dengan AI? (mengirim fakta hasil scan, bukan source code, ke Anthropic)"),
+                                      default=has_key, style=STYLE))
+    if use_ai and not has_key:
+        if _ask(questionary.confirm(t("No Anthropic API key yet. Set it up now?", "Belum ada API key Anthropic. Atur sekarang?"),
+                                    default=True, style=STYLE)):
+            from repolens import auth
+            use_ai = auth.login() == 0
+            ui.out.print()
+        else:
+            use_ai = False
+    if not use_ai:
         argv.append("--no-ai")
     argv += ["--lang", _language()]
     out = _text(t("Output folder", "Folder output"), default="docs-output")
     if out != "docs-output":
         argv += ["--out", out]
     return argv
+
+
+def _auth_flow() -> list[str]:
+    return ["auth", _select(t("AI API key", "API key AI"), [
+        Choice(t("Save or replace my API key", "Simpan atau ganti API key saya"), "login"),
+        Choice(t("Show the key and model in use", "Tampilkan key dan model yang dipakai"), "status"),
+        Choice(t("Remove the saved key", "Hapus key yang disimpan"), "logout"),
+    ])]
 
 
 def _doctor_flow() -> list[str]:
@@ -188,7 +205,7 @@ def _export_flow() -> list[str]:
     return argv + ["--lang", _language()]
 
 
-FLOWS = {"scan": _scan_flow, "doctor": _doctor_flow, "init": _init_flow, "diff": _diff_flow, "export": _export_flow}
+FLOWS = {"auth": _auth_flow, "scan": _scan_flow, "doctor": _doctor_flow, "init": _init_flow, "diff": _diff_flow, "export": _export_flow}
 
 
 def run() -> list[str] | None:
@@ -201,6 +218,7 @@ def run() -> list[str] | None:
             Choice(t("Compare two scans (diff)", "Bandingkan dua scan (diff)"), "diff"),
             Choice(t("Re-export documents from scan.json", "Export ulang dokumen dari scan.json"), "export"),
             Choice(t("Create .repolens.yml (init)", "Buat .repolens.yml (init)"), "init"),
+            Choice(t("Set up AI (API key & model)", "Atur AI (API key & model)"), "auth"),
             Separator(),
             Choice(t("Quit", "Keluar"), None),
         ])
