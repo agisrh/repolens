@@ -1,0 +1,8 @@
+name: courier_app
+version: 2.0.1+10
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_bloc: ^8.1.6

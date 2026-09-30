@@ -1,0 +1,78 @@
+# Real repositories scanned as regression tests. Run with: pytest -m corpus
+#
+# Each entry pins a commit so results never drift. Public repos are cloned into
+# ~/.cache/repolens/corpus. Local (internal) repos are scanned at `ref` through a
+# temporary clone, and skipped when `path` does not exist on the machine.
+#
+# Adding a project that exposed a new variant:
+#   1. add an entry with the commit you tested
+#   2. list only what you verified by hand in `expect`
+#   3. fix the extractor until `pytest -m corpus` passes, and check the other entries still pass
+#
+# expect keys:
+#   framework: {name: version}         version null = only check the name
+#   min: {server, client, pages, tables}
+#   server / client / pages: ["METHOD path", ...] that must be present
+#   tables: {table: [columns that must be present]}
+
+public:
+  - name: spring-petclinic
+    url: https://github.com/spring-projects/spring-petclinic.git
+    commit: 818c4136ea971c21674525f9053de0d9c7ad8cfe
+    expect:
+      framework: {Spring Boot: null, Java: "17"}
+      min: {server: 18, tables: 7}
+      server: ["GET /owners/new", "POST /owners/{ownerId}/edit", "GET /vets.html"]
+      tables: {owners: [first_name, last_name, address], visits: [visit_date]}
+
+  - name: codeigniter4-appstarter
+    url: https://github.com/codeigniter4/appstarter.git
+    commit: 8d252c8f594921ec4629bbb253f9f2e8921b9e93
+    expect:
+      framework: {CodeIgniter 4: null}
+      server: ["GET /"]
+
+  - name: laravel-realworld
+    url: https://github.com/gothinkster/laravel-realworld-example-app.git
+    commit: e45c37c8a5f57131c9d239f1fc104c227e66b6ee
+    expect:
+      framework: {Laravel: "5.5.45"}
+      min: {server: 27, tables: 7}
+      server: ["POST /api/users/login", "GET /api/profiles/{user}", "DELETE /api/articles/{article}/favorite"]
+      tables: {articles: [slug, title, body], users: [username, email]}
+
+  - name: nextjs-dashboard
+    url: https://github.com/vercel/nextjs-postgres-nextauth-tailwindcss-template.git
+    commit: fe026711c19ac3ee4589c86a738f59b84e611559
+    expect:
+      framework: {Next.js: "15.5.7"}
+      server: ["GET /api/seed"]
+      pages: ["VIEW /customers", "VIEW /login"]
+      tables: {products: [name, price]}
+
+  - name: react-redux-realworld
+    url: https://github.com/gothinkster/react-redux-realworld-example-app.git
+    commit: ee72eba4056392c95a27bc48d385d3f54ba38a18
+    expect:
+      framework: {React: null}
+      min: {client: 20, pages: 8}
+      client: ["POST /users/login", "GET /articles"]
+      pages: ["VIEW /login", "VIEW /settings"]
+
+local:
+  - name: mobile_pos
+    path: ~/Workspace/Kalog/mobile_pos
+    ref: 9fd62bf
+    expect:
+      framework: {Flutter: "3.35.0", flutter_bloc: "8.1.6"}
+      min: {client: 85}
+      client: ["PUT assign-truck/assignment", "GET trucks", "GET pickup", "GET agen/{outletId}/profile/{id}"]
+
+  - name: web-portal
+    path: ~/Workspace/Kalog/web-portal
+    ref: 0be74e3
+    expect:
+      framework: {CodeIgniter 4: null}
+      min: {server: 27, tables: 10}
+      server: ["GET /", "GET /layanan/kalog-express"]
+      tables: {cp_berita: [id_berita, status_berita], kategori: [nama_kategori]}

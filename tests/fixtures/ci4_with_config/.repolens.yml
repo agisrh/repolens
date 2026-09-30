@@ -1,0 +1,15 @@
+name: Web Portal Contoh
+version: 2.1.0
+frameworks:
+  - {name: CodeIgniter 4, version: 4.1.3}
+routes:
+  - app/Config/RoutesAdmin.php
+schema:
+  - database/*.dump
+ignore:
+  - public/assets/vendor
+endpoints:
+  - {method: GET, path: /legacy/export, handler: Legacy::export, note: auto-routing}
+notes:
+  - Auto-routing aktif di production.
+unknown_key: true

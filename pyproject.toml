@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "repolens"
+version = "0.2.0"
+description = "Generate dokumentasi teknis (PDF, Word, Markdown) dengan memindai repository."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "anthropic>=1.0",
+    "python-docx>=1.1",
+    "reportlab>=4.0",
+    "pyyaml>=6.0",
+    "tomli>=2.0; python_version < '3.11'",
+    "rich>=13",
+    "questionary>=2",
+]
+
+[project.scripts]
+repolens = "repolens.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["repolens*"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["corpus: repository nyata yang dipatok ke commit (butuh jaringan untuk repo publik)"]
+addopts = "-m 'not corpus'"

@@ -1,0 +1,6 @@
+CREATE TABLE `cp_berita` (
+  `id_berita` int(11) NOT NULL AUTO_INCREMENT,
+  `judul` varchar(255) NOT NULL,
+  `id_kategori` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id_berita`)
+);
