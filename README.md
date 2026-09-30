@@ -9,7 +9,7 @@ Needs Python 3.10+ and `git`. Tested on macOS and Linux.
 Install with [pipx](https://pipx.pypa.io), which keeps RepoLens in its own environment:
 
 ```bash
-pipx install git+ssh://git@github.com/agisrh/repolens.git@v0.4.0
+pipx install git+ssh://git@github.com/agisrh/repolens.git@v0.4.1
 repolens --version
 ```
 

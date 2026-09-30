@@ -2,7 +2,7 @@
 
 All notable changes to RepoLens. Versions follow [Semantic Versioning](https://semver.org); releases are git tags (`vX.Y.Z`).
 
-## [Unreleased]
+## [0.4.1] - 2026-09-30
 
 ### Changed
 - Code reorganised for readability and maintenance, with no change in scan results or
@@ -60,5 +60,6 @@ All notable changes to RepoLens. Versions follow [Semantic Versioning](https://s
 
 - First version: `scan`, `doctor`, `init`, `export`, `diff`; PDF, Word, and Markdown output.
 
+[0.4.1]: https://github.com/agisrh/repolens/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/agisrh/repolens/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/agisrh/repolens/releases/tag/v0.3.0
