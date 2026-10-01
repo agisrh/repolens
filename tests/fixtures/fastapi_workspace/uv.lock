@@ -1,0 +1,9 @@
+version = 1
+
+[[package]]
+name = "fastapi"
+version = "0.141.1"
+
+[[package]]
+name = "sqlmodel"
+version = "0.0.24"

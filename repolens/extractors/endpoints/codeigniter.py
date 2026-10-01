@@ -1,6 +1,7 @@
 """CodeIgniter 3 and 4 routes, including routes created by auto-routing.
 
-CodeIgniter 4: explicit routes in app/Config/Routes.php (and Routes/*.php), with groups and
+CodeIgniter 4: explicit routes in app/Config/Routes.php and in every other *Routes.php under
+  a Config/ folder (modules, themes, extra route files loaded with require()), with groups and
   resources. When auto-routing is on (or depends on an env variable), every public method
   of a controller is reachable too, so those are added as endpoints of their own.
 CodeIgniter 3: application/config/routes.php, plus /controller/method, which CI3 always
@@ -31,6 +32,10 @@ from repolens.repo import Repo, line_of
 
 CI4_ROUTE = re.compile(r"\$routes->(get|post|put|patch|delete|options|add|match|cli)\s*\(")
 CI4_GROUP = re.compile(r"\$routes->group\(\s*['\"]([^'\"]*)['\"]")
+# Route files of modules and themes, usually loaded from app/Config/Routes.php with require():
+# modules/Blog/Config/Routes.php, app/Config/templates/default/Routes.php, ...
+CI4_MODULE_ROUTES = ("*Config/*Routes.php", "*Config/Routes/*.php")
+CI4_404 = re.compile(r"\$routes->set404Override\(\s*['\"]([^'\"]+)['\"]")
 CI4_RESOURCE = re.compile(r"\$routes->(resource|presenter)\(\s*['\"]([^'\"]+)['\"]")
 CI3_ROUTE = re.compile(
     r"\$route\[\s*['\"]([^'\"]+)['\"]\s*\]"  # $route['uri']
@@ -48,6 +53,7 @@ def codeigniter(repo: Repo, extra: list[str] = ()) -> tuple[list[dict], list[str
     """(endpoints, notes) for CodeIgniter 4 and 3."""
     out, notes = [], []
     ci4_files = repo.glob("*app/Config/Routes.php", "*app/Config/Routes/*.php")
+    ci4_files += [f for f in repo.glob(*CI4_MODULE_ROUTES) if "$routes->" in repo.read(f)]
     ci4_files += [f for f in extra if "$routes->" in repo.read(f)]
     for path in dict.fromkeys(ci4_files):
         out += _ci4_routes(repo, path, notes)
@@ -67,7 +73,9 @@ def _ci4_routes(repo: Repo, path: str, notes: list[str]) -> list[dict]:
     """Explicit $routes->get(...), ->match(...), ->resource(...) in one routes file."""
     text = uncommented(repo.read(path))
     spans = scoped_prefixes(text, CI4_GROUP)
-    found = FileScan(path, text, "CodeIgniter 4", group="Routes.php")
+    # Routes of the app itself are one group; a module's routes are grouped by their file.
+    group = "Routes.php" if "app/Config/" in "/" + path else path
+    found = FileScan(path, text, "CodeIgniter 4", group=group)
     dynamic = 0
     for match in CI4_ROUTE.finditer(text):
         args, _ = balanced(text, match.end() - 1)
@@ -86,6 +94,8 @@ def _ci4_routes(repo: Repo, path: str, notes: list[str]) -> list[dict]:
         route = join_paths(prefix_at(spans, match.start()), values[0])
         for method in methods:
             found.add(method, route, handler.split("\\")[-1], match.start())
+    for match in CI4_404.finditer(text):  # the controller that shows "page not found"
+        found.add("ANY", "(404)", match.group(1).split("\\")[-1], match.start())
     if dynamic:
         notes.append(
             t(

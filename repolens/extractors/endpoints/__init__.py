@@ -20,6 +20,7 @@ from repolens.extractors.endpoints.java_nest import nestjs, spring
 from repolens.extractors.endpoints.javascript import express, nextjs, react_routes
 from repolens.extractors.endpoints.laravel import laravel
 from repolens.extractors.endpoints.python_go import go, python
+from repolens.extractors.endpoints.rails import rails
 from repolens.repo import Repo
 
 
@@ -29,6 +30,8 @@ def extract(repo: Repo, extra_routes: list[str] = ()) -> dict:
     extra_routes: route files listed in .repolens.yml; each is read with whichever syntax
     (Laravel, CodeIgniter 3 or 4) it contains."""
     codeigniter_endpoints, notes = codeigniter(repo, extra_routes)
+    rails_endpoints, rails_notes = rails(repo)
+    notes += rails_notes
     next_endpoints = nextjs(repo)
     server = (
         spring(repo)
@@ -38,6 +41,7 @@ def extract(repo: Repo, extra_routes: list[str] = ()) -> dict:
         + express(repo)
         + python(repo)
         + go(repo)
+        + rails_endpoints
         + [e for e in next_endpoints if e["kind"] == "server"]
     )
     pages = [e for e in next_endpoints if e["kind"] == "page"] + react_routes(repo)

@@ -265,3 +265,119 @@ def test_indonesian_output_and_legacy_values(tmp_path):
         assert "| high | Env file committed |" in md
     finally:
         set_lang("en")
+
+
+# ---- FastAPI + bun workspace: package extras and lock files at the root ------------------
+
+
+def test_python_extras_are_not_part_of_the_package_name():
+    f = run("fastapi_workspace")
+    fastapi = next(x for x in f["frameworks"] if x["name"] == "FastAPI")
+    assert fastapi["version"] == "0.141.1"  # from the uv.lock at the root, not the range
+    backend = next(m for m in f["dependencies"] if m["manifest"] == "backend/pyproject.toml")
+    assert backend["lock"] == "uv.lock"
+    names = {d["name"]: d["resolved"] for d in backend["dependencies"]}
+    assert names == {"fastapi": "0.141.1", "SQLModel": "0.0.24"}  # matched case-insensitively
+
+
+def test_node_workspace_member_uses_the_root_bun_lock():
+    f = run("fastapi_workspace")
+    frontend = next(m for m in f["dependencies"] if m["manifest"] == "frontend/package.json")
+    assert frontend["lock"] == "bun.lock"
+    versions = {d["name"]: d["resolved"] for d in frontend["dependencies"]}
+    # the nested copy "@tanstack/react-router/react" (react 18) is not the installed react
+    assert versions == {"react": "19.2.8", "@tanstack/react-router": "1.170.18"}
+
+
+# ---- CodeIgniter 4 with modules and themes (ci4ms variant) -------------------------------
+
+
+def test_ci4_routes_of_modules_and_themes():
+    f = run("ci4_modules")
+    assert endpoints(f) >= {
+        ("GET", "/"),
+        ("GET", "/backend/blogs"),
+        ("POST", "/backend/blogs"),
+        ("POST", "/backend/blogs/delete"),
+        ("GET", "/backend/blogs/tags"),
+        ("POST", "/forms/contactForm"),
+        ("ANY", "(404)"),  # the not-found page from set404Override
+    }
+    groups = {e["group"] for e in f["endpoints"]["server"]}
+    assert "modules/Blog/Config/Routes.php" in groups and "Routes.php" in groups
+    assert not [w for w in warnings(f) if "do not appear in any route" in w["message"]]
+
+
+# ---- Go: GORM models -----------------------------------------------------------------------
+
+
+def test_gorm_models_become_tables():
+    f = run("go_gorm")
+    tables = {t["name"]: t for t in f["database"]["tables"] if t["source"] == "GORM model"}
+    assert set(tables) == {"user_models", "article_models", "categories"}
+    users = {c["name"]: c["attrs"] for c in tables["user_models"]["columns"]}
+    assert users == {
+        "id": "PK",
+        "email": "unique",
+        "bio": "",
+        "image": "nullable",
+        "password": "NOT NULL",
+    }
+    articles = {c["name"]: c for c in tables["article_models"]["columns"]}
+    assert set(articles) == {
+        "id",
+        "created_at",
+        "updated_at",
+        "deleted_at",
+        "slug",
+        "title",
+        "author_id",
+    }
+    assert articles["author_id"]["attrs"] == "FK→user_models"
+    assert tables["article_models"]["notes"] == ["many2many: article_categories"]
+    assert any(e["engine"] == "SQLite" for e in f["database"]["engines"])
+
+
+# ---- Ruby on Rails -------------------------------------------------------------------------
+
+
+def test_rails_routes():
+    f = run("rails_api")
+    assert endpoints(f) == {
+        ("GET", "/"),
+        ("GET", "/api/user"),
+        ("PATCH", "/api/user"),
+        ("PUT", "/api/user"),
+        ("GET", "/api/articles"),
+        ("POST", "/api/articles"),
+        ("GET", "/api/articles/:slug"),
+        ("PATCH", "/api/articles/:slug"),
+        ("PUT", "/api/articles/:slug"),
+        ("DELETE", "/api/articles/:slug"),
+        ("POST", "/api/articles/:article_slug/favorite"),
+        ("DELETE", "/api/articles/:article_slug/favorite"),
+        ("GET", "/api/articles/:article_slug/comments"),
+        ("DELETE", "/api/articles/:article_slug/comments/:id"),
+        ("GET", "/api/articles/feed"),
+        ("POST", "/api/articles/:slug/publish"),
+        ("GET", "/admin/reports"),
+        ("GET", "/admin/export"),
+        ("POST", "/admin/export"),
+    }
+    handlers = {(e["method"], e["path"]): e["handler"] for e in f["endpoints"]["server"]}
+    assert handlers[("GET", "/api/user")] == "users#show"
+    assert handlers[("POST", "/api/articles/:article_slug/favorite")] == "favorites#create"
+    assert handlers[("GET", "/admin/reports")] == "admin/reports#index"
+    assert any("devise_for :users" in note for note in f["endpoints"]["notes"])
+
+
+def test_rails_schema():
+    f = run("rails_api")
+    articles = {c["name"]: c for c in table(f, "articles")["columns"]}
+    assert articles["id"]["attrs"] == "PK AUTO"
+    assert articles["title"]["type"] == "string(200)" and articles["title"]["attrs"] == "NOT NULL"
+    assert articles["slug"]["attrs"] == "unique"
+    assert articles["user_id"]["attrs"] == "FK→users"
+    assert articles["published"]["attrs"] == "default false"
+    assert columns(f, "taggings") == {"tag_id"}  # id: false
+    assert [e["engine"] for e in f["database"]["engines"]] == ["PostgreSQL"]

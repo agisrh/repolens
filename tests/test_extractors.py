@@ -35,3 +35,52 @@ def test_folder_tree_text_follows_the_output_language(tmp_path):
     set_lang("id")
     tree = folder_tree(Repo(tmp_path, use_git=False))["text"]
     assert "module00/  (1 file)" in tree and "(+5 lainnya)" in tree
+
+
+def test_rails_migrations_when_there_is_no_schema_rb(tmp_path):
+    from repolens.extractors.database.rails import rails_schema
+
+    migrate = tmp_path / "db" / "migrate"
+    migrate.mkdir(parents=True)
+    (migrate / "20240101_create_articles.rb").write_text(
+        "class CreateArticles < ActiveRecord::Migration[7.1]\n"
+        "  def change\n"
+        "    create_table :articles do |t|\n"
+        "      t.string :title, null: false\n"
+        "      t.references :user, foreign_key: true\n"
+        "      t.timestamps\n"
+        "    end\n"
+        "    add_index :articles, :title, unique: true\n"
+        "  end\n"
+        "end\n"
+    )
+    [articles] = rails_schema(Repo(tmp_path, use_git=False))
+    assert articles["source"] == "Rails migration"
+    assert [(c["name"], c["attrs"]) for c in articles["columns"]] == [
+        ("id", "PK AUTO"),
+        ("title", "NOT NULL unique"),
+        ("user_id", "FK→users"),
+        ("created_at", "NOT NULL"),
+        ("updated_at", "NOT NULL"),
+    ]
+
+
+def test_pnpm_lock_next_to_package_json_and_at_the_workspace_root(tmp_path):
+    from repolens.extractors.deps.node import package_json
+
+    lock = (
+        "importers:\n"
+        "  .:\n"
+        "    dependencies:\n"
+        "      vue: {specifier: ^3.4.0, version: 3.4.21(typescript@5.4.5)}\n"
+        "  web:\n"
+        "    dependencies:\n"
+        "      vue: {specifier: ^3.4.0, version: 3.5.0}\n"
+    )
+    (tmp_path / "pnpm-lock.yaml").write_text(lock)
+    (tmp_path / "package.json").write_text('{"dependencies": {"vue": "^3.4.0"}}')
+    (tmp_path / "web").mkdir()
+    (tmp_path / "web" / "package.json").write_text('{"dependencies": {"vue": "^3.4.0"}}')
+    repo = Repo(tmp_path, use_git=False)
+    assert package_json(repo, "package.json")["dependencies"][0]["resolved"] == "3.4.21"
+    assert package_json(repo, "web/package.json")["dependencies"][0]["resolved"] == "3.5.0"

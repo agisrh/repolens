@@ -24,6 +24,7 @@ CONFIG_FILES = (
     "*config/database.php",
     "*.prisma",
     "*settings.py",
+    "*config/database.yml",
 )
 # Each pattern captures a driver or scheme name, e.g. "mysql" in jdbc:mysql://...
 CONFIG_PATTERNS = (
@@ -34,6 +35,7 @@ CONFIG_PATTERNS = (
     r"DATABASE_URL\s*=\s*['\"]?(\w+)://",
     r"datasource\s+\w+\s*\{[^}]*?provider\s*=\s*\"(\w+)\"",
     r"ENGINE['\"]\s*:\s*['\"]django\.db\.backends\.(\w+)",
+    r"^\s*adapter:\s*(\w+)",  # Rails config/database.yml
 )
 # package name -> engine
 DRIVER_PACKAGES = {
@@ -63,6 +65,14 @@ DRIVER_PACKAGES = {
     "@vercel/postgres": "PostgreSQL",
     "@neondatabase/serverless": "PostgreSQL",
     "@planetscale/database": "MySQL",
+    "gorm.io/driver/postgres": "PostgreSQL",
+    "gorm.io/driver/mysql": "MySQL",
+    "gorm.io/driver/sqlite": "SQLite",
+    "gorm.io/driver/sqlserver": "SQL Server",
+    "github.com/lib/pq": "PostgreSQL",
+    "github.com/jackc/pgx/v5": "PostgreSQL",
+    "github.com/go-sql-driver/mysql": "MySQL",
+    "github.com/mattn/go-sqlite3": "SQLite",
 }
 # docker image name part -> engine
 IMAGES = (
@@ -89,6 +99,8 @@ DISPLAY_NAMES = {
     "oracle": "Oracle",
     "hsqldb": "HSQLDB",
     "mariadb": "MariaDB",
+    "mysql2": "MySQL",
+    "trilogy": "MySQL",
 }
 
 

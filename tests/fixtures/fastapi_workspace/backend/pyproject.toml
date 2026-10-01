@@ -1,0 +1,7 @@
+[project]
+name = "backend"
+version = "0.1.0"
+dependencies = [
+    "fastapi[standard]>=0.114.2,<1.0.0",
+    "SQLModel<1.0.0,>=0.0.21",
+]

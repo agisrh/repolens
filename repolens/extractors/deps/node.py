@@ -14,15 +14,18 @@ from repolens.repo import Repo
 
 def _npm_lock_versions(repo: Repo, folder: str) -> tuple[str | None, dict]:
     """(lock file, {package: installed version}) from the first lock file found next to
-    package.json; (None, {}) without one."""
-    for name, read in LOCK_READERS:
-        lock = sibling(folder, name)
-        if repo.exists(lock):
-            return lock, read(repo.read(lock))
+    package.json, else at the repository root (npm, yarn, pnpm, and bun workspaces keep one
+    lock file there for every member); (None, {}) without one."""
+    for where in dict.fromkeys([folder, ""]):
+        for name, read in LOCK_READERS:
+            lock = sibling(where, name)
+            if repo.exists(lock):
+                # The member path only matters for a lock file shared from the root.
+                return lock, read(repo.read(lock), folder if where != folder else "")
     return None, {}
 
 
-def _package_lock(text: str) -> dict:
+def _package_lock(text: str, member: str = "") -> dict:
     """package-lock.json: v2/v3 "packages" (top level only), then v1 "dependencies"."""
     try:
         data = json.loads(text)
@@ -37,7 +40,7 @@ def _package_lock(text: str) -> dict:
     return versions
 
 
-def _yarn_lock(text: str) -> dict:
+def _yarn_lock(text: str, member: str = "") -> dict:
     """yarn.lock: a `"name@range", "name@range2":` header line, then `version "1.2.3"`."""
     versions = {}
     current: list[str] = []  # package names of the entry being read
@@ -58,13 +61,14 @@ def _yarn_lock(text: str) -> dict:
     return versions
 
 
-def _pnpm_lock(text: str) -> dict:
-    """pnpm-lock.yaml: the root importer's dependencies ("1.2.3(peer@4)" -> "1.2.3")."""
+def _pnpm_lock(text: str, member: str = "") -> dict:
+    """pnpm-lock.yaml: the dependencies of the importer for this package.json (its folder,
+    "." at the root), "1.2.3(peer@4)" -> "1.2.3"."""
     try:
         data = yaml.safe_load(text) or {}
     except yaml.YAMLError:
         data = {}
-    importer = (data.get("importers") or {}).get(".") or data
+    importer = (data.get("importers") or {}).get(member or ".") or data
     versions = {}
     for section in ("dependencies", "devDependencies"):
         for name, info in (importer.get(section) or {}).items():
@@ -73,10 +77,27 @@ def _pnpm_lock(text: str) -> dict:
     return versions
 
 
+def _bun_lock(text: str, member: str = "") -> dict:
+    """bun.lock: JSON with trailing commas; "packages" maps a name to ["name@version", ...].
+    Nested entries ("parent/child") are other copies of a package and are skipped."""
+    try:
+        data = json.loads(re.sub(r",(\s*[}\]])", r"\1", text))
+    except json.JSONDecodeError:
+        return {}
+    versions = {}
+    for key, entry in (data.get("packages") or {}).items():
+        spec = entry[0] if isinstance(entry, list) and entry else ""
+        at = spec.rfind("@")  # the last @: scoped names start with one too
+        if at > 0 and spec[:at] == key:
+            versions[key] = spec[at + 1 :]
+    return versions
+
+
 LOCK_READERS = [
     ("package-lock.json", _package_lock),
     ("yarn.lock", _yarn_lock),
     ("pnpm-lock.yaml", _pnpm_lock),
+    ("bun.lock", _bun_lock),
 ]
 
 

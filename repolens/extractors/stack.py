@@ -120,6 +120,8 @@ def frameworks(repo: Repo, manifests: list[dict]) -> list[dict]:
 def _from_dependencies(found: _Found, manifest: dict) -> None:
     """Every FRAMEWORK_RULES entry whose package is a dependency of this manifest."""
     packages = {d["name"]: d for d in manifest["dependencies"]}
+    if manifest["ecosystem"].startswith("Python"):  # Python names are case-insensitive
+        packages.update({d["name"].lower(): d for d in manifest["dependencies"]})
     for name, category, prefix, package_names in FRAMEWORK_RULES:
         if not manifest["ecosystem"].startswith(prefix):
             continue

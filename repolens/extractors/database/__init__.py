@@ -4,6 +4,8 @@ Each reader returns tables in the same shape (see _common.table):
   sql.py         CREATE TABLE statements
   migrations.py  Laravel and CodeIgniter 4 migrations
   orm.py         JPA, Prisma, TypeORM, Drizzle, Django, Hive
+  gorm.py        GORM models (Go)
+  rails.py       Ruby on Rails schema.rb or migrations
   php_models.py  tables inferred from PHP models and queries (partial, marked "inferred")
   engines.py     which database engines are used
 
@@ -15,6 +17,7 @@ from __future__ import annotations
 
 from repolens.extractors.database._common import also_defined
 from repolens.extractors.database.engines import engines
+from repolens.extractors.database.gorm import gorm_models
 from repolens.extractors.database.migrations import ci4_migrations, laravel_migrations
 from repolens.extractors.database.orm import (
     django_models,
@@ -25,6 +28,7 @@ from repolens.extractors.database.orm import (
     typeorm,
 )
 from repolens.extractors.database.php_models import php_models
+from repolens.extractors.database.rails import rails_schema
 from repolens.extractors.database.sql import sql_files
 from repolens.repo import Repo
 
@@ -43,6 +47,8 @@ def extract(
         + drizzle(repo)
         + django_models(repo)
         + hive_models(repo)
+        + gorm_models(repo)
+        + rails_schema(repo)
     )
     # Tables inferred from queries only fill gaps: skip names a real schema source defines.
     known = {t["name"].lower() for t in defined}

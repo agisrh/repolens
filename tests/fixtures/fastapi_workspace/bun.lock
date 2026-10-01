@@ -1,0 +1,12 @@
+{
+  "lockfileVersion": 1,
+  "workspaces": {
+    "": {"name": "shop",},
+    "frontend": {"name": "frontend", "dependencies": {"react": "^19.0.0",},},
+  },
+  "packages": {
+    "react": ["react@19.2.8", "", {}, "sha512-x"],
+    "@tanstack/react-router": ["@tanstack/react-router@1.170.18", "", {}, "sha512-y"],
+    "@tanstack/react-router/react": ["react@18.3.1", "", {}, "sha512-z"],
+  }
+}
